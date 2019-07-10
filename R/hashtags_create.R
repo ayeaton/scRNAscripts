@@ -2,16 +2,35 @@
 # create s obj without hashtags
 # input, 10x path, normalization, min genes, max genes, max mt, prefix/proj name, path
 
-if(out_path = NULL){
-  out_path = getwd()
-}
+suppressPackageStartupMessages({
+  library(magrittr)
+  library(glue)
+  library(Seurat)
+  library(future)
+  library(Matrix)
+  library(tidyverse)
+  library(data.table)
+  library(cowplot)
+  library(scales)
+  library(pheatmap)
+  library(RColorBrewer)
+  library(ggsci)
+  library(eulerr)
+  library(UpSetR)
+})
 
 assemble_seurat_obj <- function(data_path, sample_names, out_path, num_dim,
                                 min_genes = NULL, proj_name = NULL,
                                 max_genes = NULL, max_mt = NULL,
                                 sct = F){
 
-  counts_mat <- load_sample_counts_matrix(sample_names, data_path)
+  if(is.null(proj_name) & length(sample_names) == 1){
+    proj_name = sample_names
+  }else{
+    proj_name = "proj"
+  }
+
+  counts_mat <- load_sample_counts_matrix(sample_names = sample_names, data_path = data_path)
   seurat_obj <- create_seurat_obj(counts_mat, out_path, proj_name)
   saveRDS(seurat_obj,
           file = "seurat_obj.rds")
@@ -28,7 +47,7 @@ assemble_seurat_obj <- function(data_path, sample_names, out_path, num_dim,
           file = "seurat_obj.rds")
   plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "RNA")
 
-  if(sct = T){
+  if(sct == T){
     # sctransform data ( should save the sctransform in a new data slot)
     seurat_obj <- sctransform_data(seurat_obj)
     seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "SCT", num_dim)
@@ -73,7 +92,7 @@ assemble_seurat_obj_hto <- function(data_path, sample_names, out_path, num_dim,
           file = "seurat_obj.rds")
   plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "RNA")
 
-  if(sct = T){
+  if(sct == T){
     # sctransform data ( should save the sctransform in a new data slot)
     seurat_obj <- sctransform_data(seurat_obj)
     seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "SCT", num_dim)
@@ -94,7 +113,6 @@ load_sample_counts_matrix = function(sample_names, data_path) {
   for (i in 1:length(sample_names)) {
 
     sample_name = sample_names[i]
-    sample_dir = sample_dirs[i]
 
     message("loading counts matrix for sample: ", sample_name)
 
@@ -210,7 +228,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
                                names.field = 2, names.delim = "-")
 
     # import cellranger aggr sample sheet
-    sample_sheet_csv = paste0(sample_dir, "/outs/aggregation_csv.csv")
+    sample_sheet_csv = paste0(out_path, "/outs/aggregation_csv.csv")
     sample_sheet = read.csv(sample_sheet_csv, stringsAsFactors = FALSE)
     message("samples: ", paste(sample_sheet[, 1], collapse=", "))
 
