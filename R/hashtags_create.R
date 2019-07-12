@@ -38,10 +38,12 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   # name is null
   if (is.null(proj_name) & length(sample_names) == 1) {
     proj_name = sample_names
-  } else {
+  } else if (is.null(proj_name)) {
     proj_name = "proj"
     message("WARNING: Project name is proj. Is this what you want? This is an easy way
             for files to be over-written")
+  } else{
+    proj_name = proj_name
   }
 
   # If log_file is null, set it to project name
@@ -53,7 +55,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   write(glue("Starting analysis for {proj_name}"), file = log_file, append = TRUE)
 
   # Write message if proj_name is "proj"
-  if (pro_name == "proj") {
+  if (proj_name == "proj") {
     write(glue("WARNING: Project name is proj. Is this what you want? This is an easy way
             for files to be over-written"), file = log_file, append = TRUE)
   }
@@ -77,10 +79,16 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   counts_mat <- load_sample_counts_matrix(sample_names = sample_names,
                                           data_path = data_path,
                                           log_file = log_file)
+  
+  #save counts mat
 
+  # take the counts matrix and make a seurat object
   seurat_obj <- create_seurat_obj(counts_mat, out_path, proj_name)
-  saveRDS(seurat_obj,
-          file = glue("{proj_name}.seurat_obj.rds"))
+  
+  # save metadata
+  
+  # plot qc
+
   seurat_obj <- filter_data(seurat_obj, data_dir, proj_name = proj_name, min_genes = 30, max_genes = 7000, max_mt = 80)
   saveRDS(seurat_obj,
           file = glue("{proj_name}.seurat_obj.rds"))
@@ -116,6 +124,13 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
           file = glue("{proj_name}.seurat_obj.rds"))
 }
 
+write_message <- function(message_str, log_file){
+  message(message_str)
+  write(message_str,
+        file = log_file,
+        append = TRUE)
+}
+
 load_sample_counts_matrix = function(sample_names, data_path, log_file) {
   # Reads in count data from 10x from one path or multiple paths
   #
@@ -128,10 +143,7 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
   #   Counts matrix from 10x, merged from several samples or from one
 
   message_str <- "\n\n ========== import cell ranger counts matrix ========== \n\n"
-  message(message_str)
-  write(message_str,
-        file = log_file,
-        append = TRUE)
+  write_message(message_str, log_file)
 
   merged_counts_matrix = NULL
 
@@ -140,10 +152,8 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
     sample_name = sample_names[i]
 
     message_str <- glue("loading counts matrix for sample: {sample_name}")
-    message(message_str)
-    write(message_str,
-          file = log_file,
-          append =TRUE)
+    write_message(message_str, log_file)
+    
 
     # check if sample dir is valid
     if (!dir.exists(data_path)) stop(glue("dir {data_path} does not exist"))
@@ -161,19 +171,15 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
     if (!dir.exists(data_dir)) stop(glue("dir {data_path} does not contain matrix.mtx"))
 
     message_str <- glue("loading counts matrix dir: {data_dir}")
-    message(message_str)
-    write(message_str,
-          file = log_file,
-          append = TRUE)
+    write_message(message_str, log_file)
+    
 
     counts_matrix = Read10X(data_dir)
 
     message_str <- glue("library {sample_name} cells: {ncol(counts_matrix)}
                         library {sample_name} genes: {nrow(counts_matrix)}")
-    message(message_str)
-    write(message_str,
-          file = log_file,
-          append = TRUE)
+    write_message(message_str, log_file)
+    
 
     # clean up counts matrix to make it more readable
     counts_matrix = counts_matrix[sort(rownames(counts_matrix)), ]
@@ -204,6 +210,8 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
         message_str <- glue("num genes for previous libraries: {length(rownames(merged_counts_matrix))}
                             num genes for current library: {length(rownames(counts_matrix))}
                             num genes in common: {length(common_genes)}")
+        write_message(message_str, log_file)
+        
 
         # exit if the number of overlapping genes is too few
         if (length(common_genes) < (length(rownames(counts_matrix)) * 0.9)) stop("libraries have too few genes in common")
@@ -226,33 +234,30 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
 
 }
 
-# convert a sparse matrix of counts to a Seurat object and generate some QC plots
+
 create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL, aggregated = NULL) {
+  # convert a sparse matrix of counts to a Seurat object and generate some QC plots
+  # 
+  # Args:
+  #   counts_matrix: Sparse matrix of gene counts 
+  #   out_path: Output directory
+  #   proj_name: Name of the project -- also names of output files
+  #   aggregated: If using the aggregated counts from cellranger
+  #
+  # Returns:
+  #   Seurat_object with light filtering min cells =5 and min features = 250
+  
 
-  message("\n\n ========== save raw counts matrix ========== \n\n")
-
-  # log to file
-  write(glue("input cells: {ncol(counts_matrix)}"), file = "create.log", append = TRUE)
-  write(glue("input genes: {nrow(counts_matrix)}"), file = "create.log", append = TRUE)
-
-  # # save counts matrix as a csv file (to be consistent with the rest of the tables)
-  raw_data = counts_matrix %>%
-    as.matrix() %>%
-    as.data.frame() %>%
-    rownames_to_column("gene") %>%
-    arrange(gene)
-
-  write_csv(raw_data,
-            path = glue("{out_path}/{proj_name}.counts.raw.csv.gz"))
-
-  rm(raw_data)
-
-  message("\n\n ========== create seurat object ========== \n\n")
+  message_str <- glue("\n\n ========== create seurat object ========== \n\n
+                     input cells: {ncol(counts_matrix)}
+                      input genes: {nrow(counts_matrix)}")
+  write_message(message_str, log_file)
+  
 
   if (is.null(aggregated)) {
 
     # if name is not set, then it's a manually merged counts matrix
-    s_obj = CreateSeuratObject(counts = counts_matrix, min.cells = 5, min.features = 250, project = "proj",
+    s_obj = CreateSeuratObject(counts = counts_matrix, min.cells = 5, min.features = 250, project = proj_name,
                                names.field = 1, names.delim = ":")
     rm(counts_matrix)
 
@@ -266,12 +271,16 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL, aggrega
     # import cellranger aggr sample sheet
     sample_sheet_csv = paste0(out_path, "/outs/aggregation_csv.csv")
     sample_sheet = read.csv(sample_sheet_csv, stringsAsFactors = FALSE)
-    message("samples: ", paste(sample_sheet[, 1], collapse=", "))
+    
+    samples_names <- paste(sample_sheet[, 1], collapse=", ")
+    message_str <- glue("samples: {samples_names}")
+    
 
     # change s_obj@meta.data$orig.ident sample identities from numbers to names
     s_obj[["orig.ident"]][, 1] = factor(sample_sheet[s_obj[["orig.ident"]][, 1], 1])
     # set s_obj@ident to the new s_obj@meta.data$orig.ident
     s_obj = set_identity(seurat_obj = s_obj, group_var = "orig.ident")
+    rm(counts_matrix)
 
   } else {
 
@@ -279,14 +288,10 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL, aggrega
 
   }
 
-  message(glue("imported cells: {ncol(s_obj)}"))
-  message(glue("imported genes: {nrow(s_obj)}"))
-  message(" ")
-
-  # log to file
-  write(glue("imported cells: {ncol(s_obj)}"), file = "create.log", append = TRUE)
-  write(glue("imported genes: {nrow(s_obj)}"), file = "create.log", append = TRUE)
-
+  message_str <- glue("imported cells: {ncol(s_obj)}
+                      imported genes: {nrow(s_obj)}")
+  write_message(message_str, log_file)
+  
   # rename nCount_RNA and nFeature_RNA slots to make them more clear
   s_obj$num_UMIs = s_obj$nCount_RNA
   s_obj$num_genes = s_obj$nFeature_RNA
@@ -305,40 +310,52 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL, aggrega
   # check distribution of gene counts and mitochondrial percentage
   low_quantiles = c(0.05, 0.02, 0.01, 0.001)
   high_quantiles = c(0.95, 0.98, 0.99, 0.999)
-  message("num genes low percentiles:")
-
-  s_obj$num_genes %>%
+  
+  low_pct <- s_obj$num_genes %>%
     quantile(low_quantiles) %>%
-    round(1) %>%
-    print()
-  message(" ")
-  message("num genes high percentiles:")
-  s_obj$num_genes %>%
-    quantile(high_quantiles) %>%
-    round(1) %>%
-    print()
-  message(" ")
-  message("pct mito high percentiles:")
-  s_obj$pct_mito %>%
-    quantile(high_quantiles) %>%
-    round(1) %>%
-    print()
-  message(" ")
+    round(1)
+  
+  message_str <- glue("num genes low percentiles: {low_pct}")
+  write_message(message_str, log_file)
 
-  plot_qc_seurat(s_obj,
-                 out_path,
-                 proj_name,
-                 type = "unfiltered")
+  high_pct <- s_obj$num_genes %>%
+    quantile(high_quantiles) %>%
+    round(1)
+  message_str <- glue("num genes high percentiles: {high_pct}")
+  write_message(message_str, log_file)
+  
+  high_mito_pct <- s_obj$pct_mito %>%
+    quantile(high_quantiles) %>%
+    round(1)
+  message_str <- glue("num genes high mito percentiles: {high_mito_pct}")
+  write_message(message_str, log_file)
 
+  return(s_obj)
+}
+
+save_counts_matrix <- function(counts_matrix, out_path, proj_name){
+  # save counts matrix as a csv file (to be consistent with the rest of the tables)
+  raw_data = counts_matrix %>%
+    as.matrix() %>%
+    as.data.frame() %>%
+    rownames_to_column("gene") %>%
+    arrange(gene)
+  
+  write_csv(raw_data,
+            path = glue("{out_path}/{proj_name}.counts.raw.csv.gz"))
+  
+  rm(raw_data)
+}
+save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type){
   # save unfiltered cell metadata
   s_obj@meta.data %>%
     rownames_to_column("cell") %>%
     as_tibble() %>%
     mutate(sample_name = orig.ident) %>%
     write_excel_csv(path = glue("{out_path}/{proj_name}.metadata.unfiltered.csv"))
-
-  return(s_obj)
 }
+
+
 
 # create a vector of colors for the Idents of the s_obj
 create_color_vect <- function(seurat_obj){
