@@ -87,18 +87,21 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   # take the counts matrix and make a seurat object
   seurat_obj_1 <- create_seurat_obj(counts_mat = counts_mat, 
                                     out_path = out_path, 
-                                    proj_name = proj_name)
+                                    proj_name = proj_name, 
+                                    log_file = log_file)
   
   # save counts mat
   save_counts_matrix(seurat_obj = seurat_obj_1,
                      out_path = out_path,
                      proj_name = proj_name,
+                     log_file = log_file,
                      type = "raw")
   
   # save unfiltered seurat metadata
   save_seurat_metadata(seurat_obj = seurat_obj_1, 
                        out_path = out_path,
                        proj_name = proj_name, 
+                       log_file = log_file,
                        type = "unfiltered")
     
   # plot qc of the unfiltered seurat object
@@ -109,11 +112,12 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
 
   # filter seurat object for min genes, max genes and max mito pct
   seurat_obj_2 <- filter_data(seurat_obj_1, 
-                            data_dir = data_dir, 
-                            proj_name = proj_name, 
-                            min_genes = min_genes, 
-                            max_genes = max_genes, 
-                            max_mt = max_mt)
+                              out_dir = out_dir, 
+                              proj_name = proj_name, 
+                              log_file = log_file,
+                              min_genes = min_genes, 
+                              max_genes = max_genes, 
+                             max_mt = max_mt)
   rm(seurat_obj_1)
   
   # plot qc plots for filtered seurat obj
@@ -127,50 +131,63 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
 
   # here the proj name and the sample name have to match
   seurat_obj_hto <- create_seurat_obj_hto(seurat_obj = seurat_obj_2, 
-                                      hto_data = hto_data, 
+                                          HTO_counts = hto_data, 
                                       proj_name = proj_name, 
-                                      out_dir = data_path)
+                                      out_dir = data_path,
+                                      log_file = log_file, 
+                                      hto_demux_quantile = 0.99,
+                                      multi_demux_quantile = 0.7)
   rm(seurat_obj_2)
 
   # save metadata with HTO
   save_seurat_metadata(seurat_obj = seurat_obj_hto,
                        out_path = out_path,
+                       log_file = log_file,
                        proj_name = proj_name, 
                        type = "HTO")
 
   # plot HTO related plots
   seurat_plot_hto(seurat_obj = seurat_obj_hto, 
                   out_path = out_path,
-                  proj_name = proj_name,
-                  hto_demux_quantile = 0.99,
-                  multi_demux_quantile = 0.7)
+                  proj_name = proj_name)
   
   # manual_hto(seurat_obj, out_path, proj_name)
 
   # log normalize data
   seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj_hto, 
                                        out_path = out_path,
-                                       proj_name = proj_name)
+                                       proj_name = proj_name,
+                                       log_file = log_file)
   rm(seurat_obj_hto)
   
   # calculate variance and plot 
   seurat_obj_var <- calculate_variance(seurat_obj = seurat_obj_log,
                                    out_path = out_path,
-                                   proj_name = proj_name)
+                                   proj_name = proj_name,
+                                   log_file = log_file)
   rm(seurat_obj_log)
   
   # run PCA, TSNE and UMAP
   seurat_obj_dim <- run_dimensionality_reduction(seurat_obj = seurat_obj_var, 
                                              assay = "RNA", 
-                                             num_dim = num_dim)
+                                             num_dim = num_dim,
+                                             log_file = log_file)
   rm(seurat_obj_var)
+  
+  save_seurat_metadata(seurat_obj = seurat_obj_dim,
+                       out_path = out_path,
+                       proj_name = proj_name, 
+                       log_file = log_file,
+                       type = "dim")
   
   # plot PCA, UMAP, TSNE 
   plot_dimensionality_reduction(seurat_obj = seurat_obj_dim, 
                                 out_path = out_path, 
                                 proj_name = proj_name, 
+                                log_file = log_file,
                                 assay = "RNA",
                                 num_pcs = num_dim)
+  
 
   if(sct == T){
     # sctransform data ( should save the sctransform in a new data slot)
@@ -294,7 +311,7 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
 
 }
 
-create_seurat_obj <- function(counts_matrix, out_path, proj_name, aggregated = NULL) {
+create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggregated = NULL) {
   # convert a sparse matrix of counts to a Seurat object and generate some QC plots
   # 
   # Args:
@@ -392,7 +409,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name, aggregated = N
   return(s_obj)
 }
 
-save_counts_matrix <- function(seurat_obj, out_path, proj_name, type) {
+save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file) {
   # save counts matrix as a csv file (to be consistent with the rest of the tables)
   
   s_obj <- seurat_obj
@@ -418,7 +435,7 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type) {
   rm(counts)
 }
 
-save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type) {
+save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file) {
   # save metadata from seurat object 
   
   message_str <- "\n\n ========== saving metadata ========== \n\n"
@@ -426,7 +443,7 @@ save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type) {
   
   s_obj <- seurat_obj
   
-  if (s_obj has dims){3
+  if (length(which(names(s_obj[[]]) %in% "tsne")) > 0  & length(which(names(s_obj[[]]) %in% "umap")) > 0) {
     # compile all cell metadata into a single table
     metadata_tbl = s_obj@meta.data %>%
       as_tibble() %>%
@@ -608,7 +625,7 @@ get_dr_point_size = function(seurat_obj) {
 
 }
 
-filter_data <- function(seurat_obj, out_dir, proj_name, min_genes = NULL, max_genes = NULL, max_mt = 10) {
+filter_data <- function(seurat_obj, out_dir, proj_name, log_file, min_genes = NULL, max_genes = NULL, max_mt = 10) {
   # filter data by number of genes and mitochondrial percentage
   #
   # Args:
@@ -668,7 +685,7 @@ filter_data <- function(seurat_obj, out_dir, proj_name, min_genes = NULL, max_ge
   return(s_obj)
 }
 
-log_normalize_data <- function(seurat_obj, out_path, proj_name) {
+log_normalize_data <- function(seurat_obj, out_path, proj_name, log_file) {
   # log normalize data
   
   message_str <- "\n\n ========== log normalize ========== \n\n"
@@ -689,14 +706,13 @@ log_normalize_data <- function(seurat_obj, out_path, proj_name) {
   message_str <- glue("filtered cells: {ncol(s_obj)}
                       filtered genes: {nrow(s_obj)}
                       filtered mean num genes: {round(mean(s_obj$num_genes), 3)}
-                      filtered median num genes: {median(s_obj$num_genes)}"
+                      filtered median num genes: {median(s_obj$num_genes)}")
   write_message(message_str, log_file)
   
   return(s_obj)
 }
 
-
-calculate_variance <- function(seurat_obj, out_path, proj_name){
+calculate_variance <- function(seurat_obj, out_path, proj_name, log_file){
   # calculate variance of genes in a seurat object
   
   s_obj = seurat_obj
@@ -792,13 +808,13 @@ sctransform_data <- function(seurat_obj){
 
 }
 
-run_dimensionality_reduction <- function(seurat_obj, assay, num_dim){
+run_dimensionality_reduction <- function(seurat_obj, assay, num_dim, log_file) {
   # Runs PCA, UMAP, and TSNE - UMAP AND TSNE use all PCs
   
   s_obj <- seurat_obj
   
   message_str <- "\n\n ========== dimensionality reduction ========== \n\n"
-  write_message(messate_str)
+  write_message(message_str)
   
   if (ncol(s_obj) < 100) num_dim = 20
   if (ncol(s_obj) < 25) num_dim = 5
@@ -826,7 +842,7 @@ run_dimensionality_reduction <- function(seurat_obj, assay, num_dim){
   return(s_obj)
 }
 
-plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, num_pcs = 30){
+plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, log_file, num_pcs = 30){
 
   s_obj <- seurat_obj
 
@@ -943,7 +959,7 @@ clean_hto <- function(HTO_file) {
   
 }
 
-create_seurat_obj_hto <- function(seurat_obj, out_dir, HTO_counts, proj_name, 
+create_seurat_obj_hto <- function(seurat_obj, out_dir, HTO_counts, proj_name, log_file, 
                                   hto_demux_quantile = 0.99, multi_demux_quantile = 0.7) {
   # add HTO slot to an existing seurat object
   #
