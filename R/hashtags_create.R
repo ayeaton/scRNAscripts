@@ -17,94 +17,91 @@ suppressPackageStartupMessages({
   library(ggsci)
   library(eulerr)
   library(UpSetR)
+  library(GGally)
+  library(compositions)
 })
 
-assemble_seurat_obj <- function(data_path, sample_names, out_path, num_dim,
-                                min_genes = NULL, proj_name = NULL,
-                                max_genes = NULL, max_mt = NULL,
-                                sct = F){
 
-  if(is.null(proj_name) & length(sample_names) == 1){
+assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/outs/
+                                    sample_names, # name of samples, can be more than 1
+                                    out_path, # path to deposit outputs
+                                    num_dim, # number of dimensions to use for PCA, UMAP, and TSNE
+                                    HTO_file, # path to HTO file
+                                    sct = F, # use ScTransform or not
+                                    proj_name = NULL, # name of project
+                                    log_file = NULL, # name of log file
+                                    min_genes = NULL,
+                                    max_genes = NULL,
+                                    max_mt = NULL) {
+
+  # Set project name to sample name if there is only one sample, and if projec
+  # name is null
+  if (is.null(proj_name) & length(sample_names) == 1) {
     proj_name = sample_names
-  }else{
+  } else {
     proj_name = "proj"
+    message("WARNING: Project name is proj. Is this what you want? This is an easy way
+            for files to be over-written")
   }
 
-  counts_mat <- load_sample_counts_matrix(sample_names = sample_names, data_path = data_path)
-  seurat_obj <- create_seurat_obj(counts_mat, out_path, proj_name)
-  saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  seurat_obj <- filter_data(seurat_obj, min_genes = NULL, max_genes = NULL, max_mt = NULL)
-  saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  # log normalize data
-  seurat_obj <- log_normalize_data(seurat_obj, out_path, proj_name)
-  seurat_obj <- calculate_variance(seurat_obj, out_path, proj_name)
-  saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "RNA", num_dim)
-  saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "RNA")
-
-  if(sct == T){
-    # sctransform data ( should save the sctransform in a new data slot)
-    seurat_obj <- sctransform_data(seurat_obj)
-    seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "SCT", num_dim)
-    saveRDS(seurat_obj,
-            file = "seurat_obj.rds")
-    plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "SCT")
+  # If log_file is null, set it to project name
+  if (is.null(log_file)) {
+    log_file = glue("{proj_name}_create.log")
   }
-  saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-}
 
-assemble_seurat_obj_hto <- function(data_path, sample_names, out_path, num_dim,
-                                    HTO_dir,
-                                min_genes = NULL, proj_name = NULL,
-                                max_genes = NULL, max_mt = NULL,
-                                sct = F){
+  # Set up log file
+  write(glue("Starting analysis for {proj_name}"), file = log_file, append = TRUE)
 
-  counts_mat <- load_sample_counts_matrix(sample_names, data_path)
+  # Write message if proj_name is "proj"
+  if (pro_name == "proj") {
+    write(glue("WARNING: Project name is proj. Is this what you want? This is an easy way
+            for files to be over-written"), file = log_file, append = TRUE)
+  }
+
+  #
+  counts_mat <- load_sample_counts_matrix(sample_names = sample_names,
+                                          data_path = data_path,
+                                          log_file = log_file)
+
   seurat_obj <- create_seurat_obj(counts_mat, out_path, proj_name)
   saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  seurat_obj <- filter_data(seurat_obj, min_genes = NULL, max_genes = NULL, max_mt = NULL)
+          file = glue("{proj_name}.seurat_obj.rds"))
+  seurat_obj <- filter_data(seurat_obj, data_dir, proj_name = proj_name, min_genes = 30, max_genes = 7000, max_mt = 80)
   saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
+          file = glue("{proj_name}.seurat_obj.rds"))
   # add hto data
-  hto_data <- clean_hto(HTO_dir)
+  hto_data <- clean_hto(HTO_file)
 
   # here the proj name and the sample name have to match
-  seurat_obj <- create_seurat_obj_hto(seurat_obj, HTO_counts, proj_name)
+  seurat_obj <- create_seurat_obj_hto(seurat_obj, hto_data, proj_name, out_dir = data_path)
 
   # plot HTO related plots
   seurat_plot_hto(seurat_obj, out_path, proj_name)
-  manual_hto(seurat_obj, out_path, proj_name)
+  #manual_hto(seurat_obj, out_path, proj_name)
 
   # log normalize data
   seurat_obj <- log_normalize_data(seurat_obj, out_path, proj_name)
   seurat_obj <- calculate_variance(seurat_obj, out_path, proj_name)
   saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
+          file = glue("{proj_name}.seurat_obj.rds"))
   seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "RNA", num_dim)
   saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
-  plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "RNA")
+          file = glue("{proj_name}.seurat_obj.rds"))
+  plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "RNA", num_pcs = num_dim)
 
   if(sct == T){
     # sctransform data ( should save the sctransform in a new data slot)
     seurat_obj <- sctransform_data(seurat_obj)
     seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "SCT", num_dim)
     saveRDS(seurat_obj,
-            file = "seurat_obj.rds")
-    plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "SCT")
+            file = glue("{proj_name}.seurat_obj.rds"))
+    plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "SCT", num_pcs = num_dim)
   }
   saveRDS(seurat_obj,
-          file = "seurat_obj.rds")
+          file = glue("{proj_name}.seurat_obj.rds"))
 }
 
-load_sample_counts_matrix = function(sample_names, data_path) {
+load_sample_counts_matrix = function(sample_names, data_path, log_file) {
 
   message("\n\n ========== import cell ranger counts matrix ========== \n\n")
 
@@ -191,7 +188,7 @@ load_sample_counts_matrix = function(sample_names, data_path) {
 }
 
 # convert a sparse matrix of counts to a Seurat object and generate some QC plots
-create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
+create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL, aggregated = NULL) {
 
   message("\n\n ========== save raw counts matrix ========== \n\n")
 
@@ -199,7 +196,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
   write(glue("input cells: {ncol(counts_matrix)}"), file = "create.log", append = TRUE)
   write(glue("input genes: {nrow(counts_matrix)}"), file = "create.log", append = TRUE)
 
-  # save counts matrix as a csv file (to be consistent with the rest of the tables)
+  # # save counts matrix as a csv file (to be consistent with the rest of the tables)
   raw_data = counts_matrix %>%
     as.matrix() %>%
     as.data.frame() %>%
@@ -213,14 +210,14 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
 
   message("\n\n ========== create seurat object ========== \n\n")
 
-  if (is.null(proj_name)) {
+  if (is.null(aggregated)) {
 
     # if name is not set, then it's a manually merged counts matrix
     s_obj = CreateSeuratObject(counts = counts_matrix, min.cells = 5, min.features = 250, project = "proj",
                                names.field = 1, names.delim = ":")
     rm(counts_matrix)
 
-  } else if (proj_name == "aggregated") {
+  } else if (aggregated == "aggregated") {
 
     # multiple libraries combined using Cell Ranger (cellranger aggr)
     # setup taking into consideration aggregated names delimiter
@@ -239,7 +236,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
 
   } else {
 
-    stop("project name set to unknown value")
+    stop("aggregated name set to unknown value")
 
   }
 
@@ -291,7 +288,8 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name = NULL) {
 
   plot_qc_seurat(s_obj,
                  out_path,
-                 proj_name)
+                 proj_name,
+                 type = "unfiltered")
 
   # save unfiltered cell metadata
   s_obj@meta.data %>%
@@ -316,7 +314,7 @@ create_color_vect <- function(seurat_obj){
 }
 
 # plot violin and scatter plots
-plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
+plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_"){
 
   s_obj <- seurat_obj
   colors_samples_named <-  create_color_vect(s_obj)
@@ -382,7 +380,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
                                  ncol = 3)
 
 
-    ggsave(glue("{out_path}/{sample_name}.qc.distribution.unfiltered.png"),
+    ggsave(file = glue("{out_path}/{proj_name}.{type}.qc.distribution.png"),
            plot = dist_unfilt_plot,
            width = 10,
            height = 6,
@@ -398,7 +396,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
       feature1 = "num_UMIs",
       feature2 = "num_genes",
       group.by = "orig.ident",
-      cols = colors_samples
+      cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
 
@@ -408,7 +406,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
       feature1 = "num_UMIs",
       feature2 = "pct_mito",
       group.by = "orig.ident",
-      cols = colors_samples
+      cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
 
@@ -419,7 +417,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
       feature1 = "num_genes",
       feature2 = "pct_mito",
       group.by = "orig.ident",
-      cols = colors_samples
+      cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
 
@@ -430,7 +428,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name){
                               ncol = 3)
 
 
-  ggsave(glue("{out_path}/{sample_name}.qc.correlations.unfiltered.png"),
+  ggsave(glue("{out_path}/{proj_name}.qc.correlations.unfiltered.png"),
          plot = cor_unfilt_plot,
          width = 18,
          height = 5,
@@ -508,7 +506,8 @@ filter_data <- function(seurat_obj, out_dir, proj_name, min_genes = NULL, max_ge
 
   plot_qc_seurat(s_obj,
                  out_dir,
-                 proj_name)
+                 proj_name,
+                 "filtered")
 
   return(s_obj)
 }
@@ -518,6 +517,7 @@ log_normalize_data <- function(seurat_obj, out_path, proj_name){
 
   message("\n\n ========== log normalize ========== \n\n")
 
+  s_obj <- seurat_obj
   # after removing unwanted cells from the dataset, normalize the data
   # LogNormalize:
   # - normalizes the gene expression measurements for each cell by the total expression
@@ -649,6 +649,7 @@ sctransform_data <- function(seurat_obj){
 # use all pcs in TSNE and UMAP
 run_dimensionality_reduction <- function(seurat_obj, assay, num_dim){
 
+  s_obj <- seurat_obj
   message("\n\n ========== dimensionality reduction ========== \n\n")
 
   if (ncol(s_obj) < 100) num_dim = 20
@@ -666,12 +667,11 @@ run_dimensionality_reduction <- function(seurat_obj, assay, num_dim){
   return(s_obj)
 }
 
-plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay){
+plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, num_pcs = 30){
 
   s_obj <- seurat_obj
 
-  s_obj = set_identity(seurat_obj = s_obj,
-                       group_var = "orig.ident")
+  Idents(s_obj) <- "orig.ident"
 
   colors_samples_named <- create_color_vect(seurat_obj)
 
@@ -775,7 +775,8 @@ plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay
   # compile all cell metadata into a single table
   metadata_tbl = s_obj@meta.data %>%
     as_tibble() %>%
-    mutate(sample_name = orig.ident)
+    mutate(sample_name = orig.ident)%>%
+    rownames_to_column("cell")
 
   tsne_tbl = s_obj[["tsne"]]@cell.embeddings %>%
     round(3) %>%
@@ -801,14 +802,14 @@ plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay
 }
 
 # remove unmapped row
-clean_hto <- function(HTO_dir){
-  hto_matrix <- read.table(HTO_dir)
+clean_hto <- function(HTO_file){
+  hto_matrix <- read.table(HTO_file)
   hto_matrix <- hto_matrix[-which(rownames(hto_matrix) == "unmapped"),]
   return(hto_matrix)
 }
 
 # create seurat obj to demultiplex htos
-create_seurat_obj_hto <- function(seurat_obj, HTO_counts, proj_name){
+create_seurat_obj_hto <- function(seurat_obj, HTO_counts, proj_name, out_dir){
 
   s_obj <- seurat_obj
 
@@ -912,7 +913,7 @@ seurat_plot_hto <- function(seurat_obj, out_path, proj_name){
 
 
   doublet_bar <- doublet_bar %>%
-    mutate(sample = rep(prefix, nrow(doublet_bar)))
+    mutate(sample = rep(proj_name, nrow(doublet_bar)))
 
   plot_num_doublet <- ggplot(doublet_bar, aes(x = sample, y =percentage, fill = doub))+
     geom_col() +
@@ -967,39 +968,37 @@ seurat_plot_hto <- function(seurat_obj, out_path, proj_name){
          width =7 ,
          units = "in")
 
-  doub_col <- c("red", "blue", "green")
-  names(doub_col) <- c("Singlet", "Negative", "Doublet")
-
-  doublet_bar <- data.frame(doub = seurat_obj$MULTI_classification)
-
-  doublet_bar <- doublet_bar %>%
-    group_by(doub) %>%
-    summarise (n = n()) %>%
-    unique() %>%
-    mutate(percentage = n /sum(n))
-
-
-  doublet_bar <- doublet_bar %>%
-    mutate(sample = rep(prefix, nrow(doublet_bar)))
-
-  plot_num_doublet <- ggplot(doublet_bar, aes(x = sample, y =percentage, fill = doub))+
-    geom_col() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    scale_fill_manual(values = doub_col) +
-    theme_bw()
-
-  ggsave(plot_num_doublet, filename =  glue("{out_path}/{proj_name}.htomulti_doublet_count.png"),
-         height = 7,
-         width =7 ,
-         units = "in")
-
-
+  # doub_col <- c("red", "blue", "green")
+  # names(doub_col) <- c("Singlet", "Negative", "Doublet")
+  #
+  # doublet_bar <- data.frame(doub = seurat_obj$MULTI_classification)
+  #
+  # doublet_bar <- doublet_bar %>%
+  #   group_by(doub) %>%
+  #   summarise (n = n()) %>%
+  #   unique() %>%
+  #   mutate(percentage = n /sum(n))
+  #
+  #
+  # doublet_bar <- doublet_bar %>%
+  #   mutate(sample = rep(proj_name, nrow(doublet_bar)))
+  #
+  # plot_num_doublet <- ggplot(doublet_bar, aes(x = sample, y =percentage, fill = doub))+
+  #   geom_col() +
+  #   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  #   scale_fill_manual(values = doub_col) +
+  #   theme_bw()
+  #
+  # ggsave(plot_num_doublet, filename =  glue("{out_path}/{proj_name}.htomulti_doublet_count.png"),
+  #        height = 7,
+  #        width =7 ,
+  #        units = "in")
 }
 
 # try clr outside of Seurat bc I can't figure out what Seurat actually does
 manual_hto <- function(HTO_counts, out_path, proj_name){
 
-  hto_clr <- as.data.frame(t(as.data.frame(clr(HTO_counts))))
+  hto_clr <- as.data.frame(t(as.data.frame(compositions::clr(HTO_counts))))
 
   hto_pairs <- ggpairs(hto_clr)
   ggsave(hto_pairs,
