@@ -46,7 +46,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
 
   # If log_file is null, set it to project name
   if (is.null(log_file)) {
-    log_file = glue("{proj_name}_create.log")
+    log_file = glue("{out_path}/{proj_name}_create.log")
   }
 
   # Set up log file
@@ -58,7 +58,22 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
             for files to be over-written"), file = log_file, append = TRUE)
   }
 
-  #
+  # Log parameters
+  write(glue("data_path = {data_path}
+             sample_names = {sample_names}
+             out_path = {out_path}
+             num_dim = {num_dim}
+             HTO_file = {HTO_file}
+             sct = {sct}
+             proj_name = {proj_name}
+             log_file = {log_file}
+             min_genes = {min_genes}
+             max_genes = {max_genes}
+             max_mt = {max_mt}"),
+        file = log_file,
+        append = TRUE)
+
+  # read in count data from 10x
   counts_mat <- load_sample_counts_matrix(sample_names = sample_names,
                                           data_path = data_path,
                                           log_file = log_file)
@@ -102,8 +117,21 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
 }
 
 load_sample_counts_matrix = function(sample_names, data_path, log_file) {
+  # Reads in count data from 10x from one path or multiple paths
+  #
+  # Args:
+  #   sample_names: Names to set each sample
+  #   data_path: Paths to each sample /data_path/outs
+  #   log_file: Name of log_file
+  #
+  # Returns:
+  #   Counts matrix from 10x, merged from several samples or from one
 
-  message("\n\n ========== import cell ranger counts matrix ========== \n\n")
+  message_str <- "\n\n ========== import cell ranger counts matrix ========== \n\n"
+  message(message_str)
+  write(message_str,
+        file = log_file,
+        append = TRUE)
 
   merged_counts_matrix = NULL
 
@@ -111,7 +139,11 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
 
     sample_name = sample_names[i]
 
-    message("loading counts matrix for sample: ", sample_name)
+    message_str <- glue("loading counts matrix for sample: {sample_name}")
+    message(message_str)
+    write(message_str,
+          file = log_file,
+          append =TRUE)
 
     # check if sample dir is valid
     if (!dir.exists(data_path)) stop(glue("dir {data_path} does not exist"))
@@ -128,17 +160,20 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
     data_dir = dirname(data_dir)
     if (!dir.exists(data_dir)) stop(glue("dir {data_path} does not contain matrix.mtx"))
 
-    message("loading counts matrix dir: ", data_dir)
+    message_str <- glue("loading counts matrix dir: {data_dir}")
+    message(message_str)
+    write(message_str,
+          file = log_file,
+          append = TRUE)
 
     counts_matrix = Read10X(data_dir)
 
-    message(glue("library {sample_name} cells: {ncol(counts_matrix)}"))
-    message(glue("library {sample_name} genes: {nrow(counts_matrix)}"))
-    message(" ")
-
-    # log to file
-    write(glue("library {sample_name} cells: {ncol(counts_matrix)}"), file = "create.log", append = TRUE)
-    write(glue("library {sample_name} genes: {nrow(counts_matrix)}"), file = "create.log", append = TRUE)
+    message_str <- glue("library {sample_name} cells: {ncol(counts_matrix)}
+                        library {sample_name} genes: {nrow(counts_matrix)}")
+    message(message_str)
+    write(message_str,
+          file = log_file,
+          append = TRUE)
 
     # clean up counts matrix to make it more readable
     counts_matrix = counts_matrix[sort(rownames(counts_matrix)), ]
@@ -157,14 +192,18 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
 
         # generate a warning, since this is probably a mistake
         warning("counts matrix genes are not the same for different libraries")
+        write("counts matrix genes are not the same for different libraries",
+              file = log_file,
+              append = TRUE)
         Sys.sleep(1)
 
         # get common genes
         common_genes = intersect(rownames(merged_counts_matrix), rownames(counts_matrix))
         common_genes = sort(common_genes)
-        message("num genes for previous libraries: ", length(rownames(merged_counts_matrix)))
-        message("num genes for current library:   ", length(rownames(counts_matrix)))
-        message("num genes in common:        ", length(common_genes))
+
+        message_str <- glue("num genes for previous libraries: {length(rownames(merged_counts_matrix))}
+                            num genes for current library: {length(rownames(counts_matrix))}
+                            num genes in common: {length(common_genes)}")
 
         # exit if the number of overlapping genes is too few
         if (length(common_genes) < (length(rownames(counts_matrix)) * 0.9)) stop("libraries have too few genes in common")
