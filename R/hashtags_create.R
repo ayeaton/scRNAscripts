@@ -58,8 +58,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
 
   # Write message if proj_name is "proj"
   if (proj_name == "proj") {
-    write(glue("WARNING: Project name is proj. Is this what you want? This is an easy way
-            for files to be over-written"), 
+    write(glue("WARNING: Project name is proj. Is this what you want?
+               This is an easy way for files to be over-written"), 
           file = log_file, 
           append = TRUE)
   }
@@ -145,6 +145,13 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                        log_file = log_file,
                        proj_name = proj_name, 
                        type = "HTO")
+  
+  # plot qc plots for filtered seurat obj with HTO
+  plot_qc_seurat(seurat_obj = seurat_obj_hto,
+                 out_dir = out_dir,
+                 proj_name = proj_name,
+                 type = "filtered.HTO",
+                 group = "hash.ID")
 
   # plot HTO related plots
   seurat_plot_hto(seurat_obj = seurat_obj_hto, 
@@ -479,24 +486,24 @@ save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file
   write_excel_csv(cells_metadata, path = glue("{out_path}/{proj_name}.{type}.metadata.csv"))
 }
 
-create_color_vect <- function(seurat_obj) {
+create_color_vect <- function(seurat_obj, group = "orig.ident") {
   # create a vector of colors for the Idents of the s_obj
-  
   s_obj <- seurat_obj
   colors_samples = c(brewer.pal(5, "Set1"), brewer.pal(8, "Dark2"), pal_igv("default")(51))
   # create a named color scheme to ensure names and colors are in the proper order
-  sample_names = s_obj$orig.ident %>% as.character() %>% sort() %>% unique()
-  colors_samples_named = colors_samples[1:length(sample_names)]
-  names(colors_samples_named) = sample_names
+  sample_names = s_obj[[group]] %>% unique() %>% arrange(get(group))
+  sample_names[] <- lapply(sample_names, as.character)
+  colors_samples_named = colors_samples[1:nrow(sample_names)]
+  names(colors_samples_named) = sample_names[,1]
   return(colors_samples_named)
 }
 
-plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
+plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "orig.ident") {
   # plot qc plots from seurat obj like violin and scatter plots 
   
   s_obj <- seurat_obj
   
-  colors_samples_named <-  create_color_vect(s_obj)
+  colors_samples_named <-  create_color_vect(s_obj, group = group)
 
   vln_theme =
     theme(
@@ -515,7 +522,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       VlnPlot(
         s_obj,
         features = "num_genes",
-        group.by = "orig.ident",
+        group.by = group,
         pt.size = 0.1,
         sort = TRUE,
         combine = TRUE,
@@ -529,7 +536,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       VlnPlot(
         s_obj,
         features = "num_UMIs",
-        group.by = "orig.ident",
+        group.by = group,
         pt.size = 0.1,
         sort = TRUE,
         combine = TRUE,
@@ -543,7 +550,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       VlnPlot(
         s_obj,
         features = "pct_mito",
-        group.by = "orig.ident",
+        group.by = group,
         pt.size = 0.1,
         sort = TRUE,
         combine = TRUE,
@@ -574,7 +581,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       s_obj,
       feature1 = "num_UMIs",
       feature2 = "num_genes",
-      group.by = "orig.ident",
+      group.by = group,
       cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
@@ -584,7 +591,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       s_obj,
       feature1 = "num_UMIs",
       feature2 = "pct_mito",
-      group.by = "orig.ident",
+      group.by = group,
       cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
@@ -595,7 +602,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_") {
       s_obj,
       feature1 = "num_genes",
       feature2 = "pct_mito",
-      group.by = "orig.ident",
+      group.by = group,
       cols = colors_samples_named
     ) +
     theme(aspect.ratio = 1)
@@ -928,7 +935,34 @@ plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay
          height = 6,
          units = "in")
   Sys.sleep(1)
-
+  
+  features_plot <- names(s_obj[[]][which(names(s_obj[[]]) %in% c("num_UMIs", 
+                                                                  "num_genes", 
+                                                                  "pct_mito",
+                                                                  "hash.ID", 
+                                                                  "HTO_classification.global"))])
+  
+  feature_tsne =
+    FeaturePlot(s_obj, reduction = "tsne",
+                cells = sample(colnames(s_obj)),
+                pt.size = dr_pt_size,
+                features = features_plot) +
+    theme(aspect.ratio = 1)
+  
+  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.png"),
+         plot = feature_tsne,
+         width = 10,
+         height = 6,
+         units = "in")
+  Sys.sleep(1)
+  
+  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.pdf"),
+         plot = feature_tsne,
+         width = 10,
+         height = 6,
+         units = "in")
+  Sys.sleep(1)
+  
   # tSNE using original sample names (shuffle cells so any one group does not appear overrepresented due to ordering)
   plot_umap =
     DimPlot(s_obj, reduction = "umap",
