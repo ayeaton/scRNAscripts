@@ -27,7 +27,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                     out_path, # path to deposit outputs
                                     num_dim, # number of dimensions to use for PCA, UMAP, and TSNE
                                     HTO_file, # path to HTO file
-                                    sct = F, # use ScTransform or not
+                                    sct = FALSE, # use ScTransform or not
                                     proj_name = NULL, # name of project
                                     log_file = NULL, # name of log file
                                     min_genes = NULL,
@@ -326,7 +326,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggr
 
   message_str <- glue("\n\n ========== create seurat object ========== \n\n
                      input cells: {ncol(counts_matrix)}
-                      input genes: {nrow(counts_matrix)}")
+                     input genes: {nrow(counts_matrix)}")
   write_message(message_str, log_file)
   
 
@@ -389,21 +389,24 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggr
   
   low_pct <- s_obj$num_genes %>%
     quantile(low_quantiles) %>%
-    round(1)
+    round(1) %>% 
+    print()
   
-  message_str <- glue("num genes low percentiles: {low_pct}")
+  message_str <- glue("num genes low percentiles: {names(low_pct)}:{low_pct}       ")
   write_message(message_str, log_file)
 
   high_pct <- s_obj$num_genes %>%
     quantile(high_quantiles) %>%
-    round(1)
-  message_str <- glue("num genes high percentiles: {high_pct}")
+    round(1) %>% 
+    print()
+  message_str <- glue("num genes high percentiles: {names(high_pct)}:{high_pct}       ")
   write_message(message_str, log_file)
   
   high_mito_pct <- s_obj$pct_mito %>%
     quantile(high_quantiles) %>%
-    round(1)
-  message_str <- glue("num genes high mito percentiles: {high_mito_pct}")
+    round(1) %>% 
+    print()
+  message_str <- glue("num genes high mito percentiles: {names(high_mito_pct)}:{high_mito_pct}       ")
   write_message(message_str, log_file)
 
   return(s_obj)
@@ -443,12 +446,12 @@ save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file
   
   s_obj <- seurat_obj
   
-  if (length(which(names(s_obj[[]]) %in% "tsne")) > 0  & length(which(names(s_obj[[]]) %in% "umap")) > 0) {
+  if (length(which(names(s_obj@reductions) %in% "tsne")) > 0  & length(which(names(s_obj@reductions) %in% "umap")) > 0) {
     # compile all cell metadata into a single table
     metadata_tbl = s_obj@meta.data %>%
+      rownames_to_column("cell") %>% 
       as_tibble() %>%
-      mutate(sample_name = orig.ident)%>%
-      rownames_to_column("cell")
+      mutate(sample_name = orig.ident)
     
     tsne_tbl = s_obj[["tsne"]]@cell.embeddings %>%
       round(3) %>%
@@ -468,9 +471,10 @@ save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file
       arrange(cell)
   } else {
     cells_metadata = s_obj@meta.data %>%
+      rownames_to_column("cell") %>% 
       as_tibble() %>%
-      mutate(sample_name = orig.ident)%>%
-      rownames_to_column("cell")
+      mutate(sample_name = orig.ident) %>% 
+      arrange(cell)
   }
   write_excel_csv(cells_metadata, path = glue("{out_path}/{proj_name}.{type}.metadata.csv"))
 }
@@ -814,7 +818,7 @@ run_dimensionality_reduction <- function(seurat_obj, assay, num_dim, log_file) {
   s_obj <- seurat_obj
   
   message_str <- "\n\n ========== dimensionality reduction ========== \n\n"
-  write_message(message_str)
+  write_message(message_str, log_file)
   
   if (ncol(s_obj) < 100) num_dim = 20
   if (ncol(s_obj) < 25) num_dim = 5
