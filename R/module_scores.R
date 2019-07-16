@@ -10,55 +10,189 @@
 # scoring plots
 
 
-module_score <- function(module_tbl, counts, method = c("Iscore", "Yscore","Sscore","Zscore", "Pscore", "RSscore")) {
+module_score <- function(module_tbl, counts_norm = NULL, counts_raw = NULL, 
+                         method = c("iscore", "sscore","zscore","rsscore")) {
   # returns module scores in a uniform way for the method specified
   # 
-  # module tbl should be in long format celltype and gene
-
-  scoring_methods <- c(Iscore = "run_Iscore")
+  # Args:
+  #   module_tbl: a tibble in long format with celltype and gene
+  #   counts_norm: normalized counts table for use with Teo's scores
+  #   count_raw: raw counts table for use with Igor's scores
+  #   method: character vector with the score 
+  #
+  # Results:
+  #   list of dataframes of module scores
   
-  # run over scoring methods and get outputs and merge them to one output
-  eval(as.name(scoring_methods))(module_tbl, counts)
+  scoring_methods <- c(iscore = "run_iscore",
+                       sscore = "run_sscore",
+                       zscore = "run_zscore",
+                       rsscore = "run_rsscore")
   
-
-    Yscore = lapply(module_list, function(x, mat) colMeans(mat[x, ]), mat = scale_rows_01(counts[module_genes,])),  # Igor's score
-    Sscore = lapply(celltypes, calc_boot_score, score = boot_seurat, rmodule = rmodule_binned),
-    Zscore = lapply(celltypes, calc_boot_score, score = boot_zval, rmodule = rmodule_smooth),
-    Pscore = lapply(celltypes, calc_boot_score, score = boot_pval, rmodule = rmodule_binned),
-    RSscore = calculate_celltypes_rescaled(counts, celltypes_tbl)
+  current_methods <- scoring_methods[method]
   
+  module_scores <- lapply(current_methods, function(x){
+    scores <- eval(as.name(x))(module_tbl= module_tbl, 
+                                             counts_norm = counts_norm,
+                                             counts_raw = counts_raw)
+    
+    scores_max <- max_scores(scores = scores, method = names(x))
+  })
 }
 
-run_Iscore <- function(module_tbl, counts) {
+max_scores <- function(scores, method, threshold = 0) {
+  # gets max pos or zero 
+  # idk how to do Igors yet
+  scores$unknown <- rep(threshold, nrow(scores))
+  scores <- scores %>% 
+    column_to_rownames("cell")
+  scores$module <- colnames(scores)[apply(scores,1,which.max)]
+  scores <- scores %>% 
+    separate(module, c("module", NA))
+  var <- sym(paste(eval(method), "_module", sep = ""))
+  scores <- scores %>% 
+    rename(!!var := module) %>% 
+    select(-contains("unknown"))
+  return(scores)
+}
+
+run_iscore <- function(module_tbl, counts_norm, counts_raw = NULL) {
   # module tbl should be in long format with celltype and gene
   
-  # subset counts to only have genes to be used
-  counts_sub <- semi_join(counts, module_tbl, by = "gene")
-  counts_sub = counts_sub %>% as.data.frame() %>% column_to_rownames("gene") %>% as.matrix()
+  module_tbl <- module_tbl %>% 
+    filter(.$gene %in% rownames(counts_norm)) 
+  
+  counts_sub <- counts_norm[which(rownames(counts_norm) %in% module_tbl$gene),]
+  counts_sub <- scale_rows(counts_sub)
 
   iscores <- module_tbl %>% 
     group_by(celltype) %>% 
     do(
       s <- simple_score(counts_sub, .$gene)
     ) %>% 
-    spread(celltype, score) %>% 
+    spread(celltype, scores) %>% 
     rename_at(vars(-contains("cell")), list(~paste0(., "_Iscore")))
   
   return(iscores)
 }
 
-run_Yscore <- function(module_tbl, counts) {
+run_sscore <- function(module_tbl, counts_norm, counts_raw = NULL) {
+  # module tbl should be in long format with celltype and gene
+
+  module_list <- module_tbl %>%
+    filter(.$gene %in% rownames(counts_norm)) %>% 
+    with(split(.$gene, celltype))
+  
+  celltypes <- unique(module_tbl$celltype)
+  
+  rmodule_binned <- lapply(module_list, get_binned_module, 
+                           binned_genes = bin_genes(counts_norm, nbins = 25L))
+  
+  score = vapply(celltypes, calc_boot_score, numeric(ncol(counts_norm)), score = boot_seurat, rmodule = rmodule_binned)
+  sscore <- score %>% 
+    as.data.frame() %>% 
+    rownames_to_column("cell") %>% 
+    rename_at(vars(-contains("cell")), list(~paste0(., "_Sscore")))
+  return(sscore)
+}
+
+run_zscore <- function(module_tbl, counts_norm, counts_raw = NULL) {
   # module tbl should be in long format with celltype and gene
   
-  # subset counts to only have genes to be used
-  counts_sub <- semi_join(counts, ., by = "gene"))
-  counts_sub = counts_sub %>% as.data.frame() %>% column_to_rownames("gene") %>% as.matrix()
+  module_list <- module_tbl %>%
+    filter(.$gene %in% rownames(counts_norm)) %>% 
+    with(split(.$gene, celltype))
+  
+  celltypes <- unique(module_tbl$celltype)
+  
+  rmodule_smooth = lapply(module_list, get_smooth_module, ave = rowMeans(counts_norm))
+  
+  score = vapply(celltypes, calc_boot_score, numeric(ncol(counts_norm)), score = boot_zval, rmodule = rmodule_smooth)
+  zscore <- score %>% 
+    as.data.frame() %>% 
+    rownames_to_column("cell") %>% 
+    rename_at(vars(-contains("cell")), list(~paste0(., "_Zscore")))
+  return(zscore)
+}
 
-  yscores <- module_tbl %>% 
-    group_by(celltype)
+run_rsscore = function(module_tbl, counts_raw, min_cpm = 0, limit_pct = 1, counts_norm = NULL) {
+  # perform the cell type enrichment calculation based on rescaled values
+  
+  module_list <- module_tbl %>%
+    filter(.$gene %in% rownames(counts_norm)) %>% 
+    with(split(.$gene, celltype))
+  
+  if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
+  if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
+  
+  # filter matrix for expressed genes only
+  counts_raw = filter_mat_by_cpm(counts_raw = counts_raw, min_cpm = min_cpm)
+  
+  # rescale matrix for expressed genes only
+  counts_raw_subs = normalize_mat_by_gene(counts_raw = counts_raw[unlist(module_list), ], limit_pct = limit_pct)
+  
+
+  # check if enough genes pass filter
+  if (min(lengths(module_list)) < 3) { stop("too few genes per celltype") }
+  
+  # calculate average z-score per celltype
+  celltype_scores_tbl = tibble()
+  for (ct in names(module_list)) {
+    celltype_scores_tbl =
+      bind_rows(
+        celltype_scores_tbl,
+        tibble(
+          cell = colnames(counts_raw_subs),
+          celltype = ct,
+          score = colMeans(counts_raw_subs[module_list[[ct]], ])
+        )
+      )
+    ct_scores = colnames(counts_raw_subs)
+  }
+
+  celltype_scores_tbl <- celltype_scores_tbl %>% 
+    spread(celltype, score) %>% 
+    rename_at(vars(-contains("cell")), list(~paste0(., "_RSscore")))
+  
+  return(celltype_scores_tbl)
+}
+
+filter_mat_by_cpm = function(counts_raw, min_cpm = 0) {
+  # filter matrix by a specified CPM value (higher in at least one sample/column for each gene/row)
+  
+  if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
+  if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
+  if (nrow(counts_raw) < 10000) { stop("expression matrix has too few genes") }
+  
+  # expression level equivalent to 1 CPM (1 for 1m, 0.01 for 10k)
+  exp_cpm1 = (1 / 1000000) * median(colSums(counts_raw))
+  # expression level equivalent to the requested CPM
+  min_exp = exp_cpm1 * min_cpm
+  # filtered expression matrix
+  counts_raw = counts_raw[matrixStats::rowMaxs(counts_raw) > min_exp, ]
+  
+  return(counts_raw)
   
 }
 
+rescale_vector = function(x, limit_pct = 1) {
+  x / quantile(x, limit_pct)
+}
+
+normalize_mat_by_gene = function(counts_raw, limit_pct = 1) {
+  
+  if (limit_pct > 1) { stop("percentile should be expressed as a fraction") }
+  if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
+  if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
+  
+  counts_raw = apply(counts_raw, MARGIN = 1, FUN = rescale_vector, limit_pct = limit_pct)
+  counts_raw = t(counts_raw)
+  counts_raw[counts_raw > 1] = 1
+  
+  return(counts_raw)
+  
+}
+calc_boot_score = function(celltype, score, rmodule) 
+  score(counts_norm, module_list[[celltype]], rmodule[[celltype]])
 
 bin_genes = function(mat, nbins = 25L) {
   # given a matrix it splits the genes into `bins`
@@ -93,9 +227,9 @@ get_smooth_module = function(module, ave, p = 2, scale. = 1) {
       sample(genes, n, prob = prob, replace = TRUE)
     }, rep("", n), USE.NAMES = FALSE)
 }
-
 get_boot_scores = function(mat, rmodule, boot_size = 100L) 
   apply(rmodule(boot_size), 1L, function(x) colMeans(mat[x, , drop = FALSE]))
+
 scale_rows = function(mat, epsilon = 1e-5) (mat - rowMeans(mat)) / (rowSds(mat) + epsilon)
 scale_rows_01 = function(mat) mat / rowMaxs(mat)
 scale_rows_rank = function(mat) t(apply(mat[module_genes,], 1L, rank))
@@ -103,15 +237,14 @@ scale_rows_rank = function(mat) t(apply(mat[module_genes,], 1L, rank))
 simple_score = function(mat, module) {
   # assuming mat is scaled by row
   ix = rownames(mat) %in% module
-  out = as.data.frame(colMeans(mat[ix, , drop = FALSE]) - colMeans(mat[!ix, , drop = FALSE]))
-  out$cell = colnames(mat)
-  colnames(out) <- c("score", "cell")
+  out <- as.data.frame(colMeans(mat[ix, , drop = FALSE]) - colMeans(mat[!ix, , drop = FALSE]))
+  out$cell <- rownames(out)
+  colnames(out) <- c("scores", "cell")
   return(out)
 }
-
 boot_seurat = function(mat, module, rmodule, boot_size = 100L, seed = 1234L) {
   set.seed(seed)
-  boot = colMeans(mat[module, ]) - get_boot_scores(mat, rmodule, boot_size)
+  boot = colMeans(mat[which(rownames(mat) %in% module), ]) - get_boot_scores(mat, rmodule, boot_size)
   rowMeans(boot)
 }
 boot_zval = function(mat, module, rmodule, boot_size = 100L, seed = 1234L) {
@@ -126,8 +259,6 @@ boot_pval = function(mat, module, rmodule, boot_size = 100L, seed = 1234L) {
   rowMeans(boot)
 }
 
-calc_boot_score = function(celltype, score, rmodule) 
-  score(counts, module_list[[celltype]], rmodule[[celltype]])
 
 softmax = function(x, mask = NULL) {
   y = exp(x)
@@ -136,94 +267,5 @@ softmax = function(x, mask = NULL) {
   mass = rowSums(y)
   mass[mass == 0] = 1  # avoid division by 0
   y / mass
-}
-
-
-calculate_celltypes_rescaled = function(exp_mat, celltypes_tbl, min_cpm = 0, limit_pct = 1) {
-  # perform the cell type enrichment calculation based on rescaled values
-  
-  if (class(exp_clust_mat) != "matrix") { stop("expression matrix is not a matrix") }
-  if (max(exp_mat) < 100) { stop("expression values appear to be log-scaled") }
-  
-  # filter matrix for expressed genes only
-  exp_mat = filter_mat_by_cpm(exp_mat = exp_mat, min_cpm = min_cpm)
-  
-  celltype_genes = celltypes_tbl %>% pull(gene)
-  celltype_genes = intersect(celltype_genes, rownames(exp_mat))
-  
-  # rescale matrix for expressed genes only
-  exp_mat = normalize_mat_by_gene(exp_mat = exp_mat[celltype_genes, ], limit_pct = limit_pct)
-  
-  # convert celltypes to list
-  celltypes_tbl = celltypes_tbl %>% filter(gene %in% celltype_genes) %>% arrange(celltype)
-  celltypes_list = celltypes_tbl %>% split(x = .$gene, f = .$celltype)
-  
-  # check if enough genes pass filter
-  if (min(lengths(celltypes_list)) < 3) { stop("too few genes per celltype") }
-  
-  # calculate average z-score per celltype
-  celltype_scores_tbl = tibble()
-  for (ct in names(celltypes_list)) {
-    celltype_scores_tbl =
-      bind_rows(
-        celltype_scores_tbl,
-        tibble(
-          cluster = colnames(exp_mat),
-          celltype = ct,
-          num_celltype_genes = length(celltypes_list[[ct]]),
-          score = colMeans(exp_mat[celltypes_list[[ct]], ])
-        )
-      )
-    ct_scores = colnames(exp_mat)
-  }
-  
-  # keep only the top scoring celltype for each cluster
-  celltype_scores_top_tbl =
-    celltype_scores_tbl %>%
-    arrange(desc(score)) %>%
-    group_by(cluster) %>%
-    top_n(1, score) %>%
-    slice(1) %>%
-    ungroup() %>%
-    mutate(score = round(score, 3))
-  
-  return(celltype_scores_top_tbl)
-  
-}
-
-# filter matrix by a specified CPM value (higher in at least one sample/column for each gene/row)
-filter_mat_by_cpm = function(exp_mat, min_cpm = 0) {
-  
-  if (class(exp_clust_mat) != "matrix") { stop("expression matrix is not a matrix") }
-  if (max(exp_mat) < 100) { stop("expression values appear to be log-scaled") }
-  if (nrow(exp_mat) < 10000) { stop("expression matrix has too few genes") }
-  
-  # expression level equivalent to 1 CPM (1 for 1m, 0.01 for 10k)
-  exp_cpm1 = (1 / 1000000) * median(colSums(exp_mat))
-  # expression level equivalent to the requested CPM
-  min_exp = exp_cpm1 * min_cpm
-  # filtered expression matrix
-  exp_mat = exp_mat[matrixStats::rowMaxs(exp_mat) > min_exp, ]
-  
-  return(exp_mat)
-  
-}
-
-rescale_vector = function(x, limit_pct = 1) {
-  x / quantile(x, limit_pct)
-}
-
-normalize_mat_by_gene = function(exp_mat, limit_pct = 1) {
-  
-  if (limit_pct > 1) { stop("percentile should be expressed as a fraction") }
-  if (class(exp_clust_mat) != "matrix") { stop("expression matrix is not a matrix") }
-  if (max(exp_mat) < 100) { stop("expression values appear to be log-scaled") }
-  
-  exp_mat = apply(exp_mat, MARGIN = 1, FUN = rescale_vector, limit_pct = limit_pct)
-  exp_mat = t(exp_mat)
-  exp_mat[exp_mat > 1] = 1
-  
-  return(exp_mat)
-  
 }
 
