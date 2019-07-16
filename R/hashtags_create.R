@@ -1,7 +1,7 @@
 
-# create s obj without hashtags
-# input, 10x path, normalization, min genes, max genes, max mt, prefix/proj name, path
+# create s obj with and without use of hashtags
 
+# TODO: remove libraries 
 suppressPackageStartupMessages({
   library(magrittr)
   library(glue)
