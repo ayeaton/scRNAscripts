@@ -220,7 +220,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
             file = glue("{proj_name}.seurat_obj.rds"))
     plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "SCT", num_pcs = num_dim)
   }
-  saveRDS(seurat_obj,
+  saveRDS(seurat_obj_dim,
           file = glue("{proj_name}.seurat_obj.rds"))
 }
 
@@ -972,33 +972,33 @@ plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay
          units = "in")
   Sys.sleep(1)
   
-  features_plot <- names(s_obj[[]][which(names(s_obj[[]]) %in% c("num_UMIs", 
-                                                                  "num_genes", 
-                                                                  "pct_mito",
-                                                                  "hash.ID", 
-                                                                  "HTO_classification.global"))])
-  
-  feature_tsne =
-    FeaturePlot(s_obj, reduction = "tsne",
-                cells = sample(colnames(s_obj)),
-                pt.size = dr_pt_size,
-                features = features_plot) +
-    theme(aspect.ratio = 1)
-  
-  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.png"),
-         plot = feature_tsne,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-  
-  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.pdf"),
-         plot = feature_tsne,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-  
+  # features_plot <- names(s_obj[[]][which(names(s_obj[[]]) %in% c("num_UMIs", 
+  #                                                                 "num_genes", 
+  #                                                                 "pct_mito",
+  #                                                                 "hash.ID", 
+  #                                                                 "HTO_classification.global"))])
+  # 
+  # feature_tsne =
+  #   FeaturePlot(s_obj, reduction = "tsne",
+  #               cells = sample(colnames(s_obj)),
+  #               pt.size = dr_pt_size,
+  #               features = features_plot) +
+  #   theme(aspect.ratio = 1)
+  # 
+  # ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.png"),
+  #        plot = feature_tsne,
+  #        width = 10,
+  #        height = 6,
+  #        units = "in")
+  # Sys.sleep(1)
+  # 
+  # ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.pdf"),
+  #        plot = feature_tsne,
+  #        width = 10,
+  #        height = 6,
+  #        units = "in")
+  # Sys.sleep(1)
+  # 
   # tSNE using original sample names (shuffle cells so any one group does not appear overrepresented due to ordering)
   plot_umap =
     DimPlot(s_obj, reduction = "umap",
