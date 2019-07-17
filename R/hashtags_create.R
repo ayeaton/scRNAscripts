@@ -90,12 +90,12 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                     proj_name = proj_name, 
                                     log_file = log_file)
   
-  # save counts mat
-  save_counts_matrix(seurat_obj = seurat_obj_1,
-                     out_path = out_path,
-                     proj_name = proj_name,
-                     log_file = log_file,
-                     type = "raw")
+  # # save counts mat
+  # save_counts_matrix(seurat_obj = seurat_obj_1,
+  #                    out_path = out_path,
+  #                    proj_name = proj_name,
+  #                    log_file = log_file,
+  #                    type = "raw")
   
   # save unfiltered seurat metadata
   save_seurat_metadata(seurat_obj = seurat_obj_1, 
@@ -158,14 +158,30 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                   out_path = out_path,
                   proj_name = proj_name)
   
+
+  
   # manual_hto(seurat_obj, out_path, proj_name)
+  
+  # subset singlets
+  seurat_obj_hto_s <- subset_singlets(seurat_obj = seurat_obj_hto,
+                                    method = "HTO_demux", 
+                                    log_file = log_file)
+    
 
   # log normalize data
-  seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj_hto, 
+  seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj_hto_s, 
                                        out_path = out_path,
                                        proj_name = proj_name,
                                        log_file = log_file)
+  rm(seurat_obj_hto_s)
   rm(seurat_obj_hto)
+  
+  # save counts mat
+  save_counts_matrix(seurat_obj = seurat_obj_log,
+                     out_path = out_path,
+                     proj_name = proj_name,
+                     log_file = log_file,
+                     type = "norm")
   
   # calculate variance and plot 
   seurat_obj_var <- calculate_variance(seurat_obj = seurat_obj_log,
@@ -623,7 +639,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
   Sys.sleep(1)
 }
 
-get_dr_point_size = function(seurat_obj) {
+get_dr_point_size <- function(seurat_obj) {
   # get point size for dim red plots
   
   pt_size = 1.8
@@ -634,6 +650,26 @@ get_dr_point_size = function(seurat_obj) {
 
   return(pt_size)
 
+}
+
+subset_singlets <- function(seurat_obj, method = "HTO_demux", log_file) {
+  
+  message_str <- glue("Keeping only HTO demux Singlets
+                      
+                      before: {table(seurat_obj$HTO_classification.global)}
+                      ")
+  write_message(message_str, log_file)
+  
+  if(method == "HTO_demux") {
+    #subset singlets
+    Idents(seurat_obj) <- "HTO_classification.global"
+    seurat_obj <- subset(seurat_obj, cells = WhichCells(seurat_obj, idents = "Singlet"))
+  }
+  message_str <- glue("after: {table(seurat_obj$HTO_classification.global)}
+                      ")
+  write_message(message_str, log_file)
+  
+  return(seurat_obj)
 }
 
 filter_data <- function(seurat_obj, out_dir, proj_name, log_file, min_genes = NULL, max_genes = NULL, max_mt = 10) {

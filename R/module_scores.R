@@ -258,8 +258,6 @@ boot_pval = function(mat, module, rmodule, boot_size = 100L, seed = 1234L) {
   boot = colMeans(mat[module, ]) > get_boot_scores(mat, rmodule, boot_size)
   rowMeans(boot)
 }
-
-
 softmax = function(x, mask = NULL) {
   y = exp(x)
   if (!is.null(mask))
