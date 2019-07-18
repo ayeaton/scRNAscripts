@@ -1,3 +1,6 @@
+# cluster rna
+
+
 
 calculate_clusters = function(seurat_obj, num_dim, num_neighbors = 30) {
 # perform graph-based clustering and tSNE
@@ -8,7 +11,9 @@ calculate_clusters = function(seurat_obj, num_dim, num_neighbors = 30) {
   
   s_obj = seurat_obj
   
-  message("\n\n ========== Seurat::FindNeighbors() ========== \n\n")
+  message_str <- "========== Seurat::FindNeighbors() =========="
+  write_message(mesage_str)
+  
   
   message("assay: ", DefaultAssay(s_obj))
   message("num dims: ", num_dim)
@@ -22,7 +27,7 @@ calculate_clusters = function(seurat_obj, num_dim, num_neighbors = 30) {
   
   message("\n\n ========== Seurat::FindClusters() ========== \n\n")
   
-  message("initial metadata fields: ", str_c(colnames(s_obj@meta.data), collapse = ", "))
+  #message("initial metadata fields: ", str_c(colnames(s_obj@meta.data), collapse = ", "))
   
   # resolutions for graph-based clustering
   # increased resolution values lead to more clusters (recommendation: 0.6-1.2 for 3K cells, 2-4 for 33K cells)
@@ -36,7 +41,7 @@ calculate_clusters = function(seurat_obj, num_dim, num_neighbors = 30) {
   # remove "seurat_clusters" column that is added automatically (added in v3 late dev version)
   s_obj@meta.data = s_obj@meta.data %>% select(-seurat_clusters)
   
-  message("new metadata fields: ", str_c(colnames(s_obj@meta.data), collapse = ", "))
+ # message("new metadata fields: ", str_c(colnames(s_obj@meta.data), collapse = ", "))
   
   # create a separate sub-directory for cluster resolution plots
   clusters_dir = "clusters-resolutions"
@@ -101,6 +106,11 @@ calculate_clusters = function(seurat_obj, num_dim, num_neighbors = 30) {
   
 }
 
+find_clusters <- function() {
+  
+  
+}
+
 calculate_cluster_stats = function(seurat_obj, label) {
   
   message("\n\n ========== calculate cluster stats ========== \n\n")
@@ -109,7 +119,7 @@ calculate_cluster_stats = function(seurat_obj, label) {
   
   # compile relevant cell metadata into a single table
   seurat_obj$cluster = Idents(seurat_obj)
-  metadata_tbl = seurat_obj@meta.data %>% rownames_to_column("cell") %>% as_tibble() %>%
+  metadata_tbl = seurat_obj@meta.data %>% as_tibble() %>%
     select(cell, num_UMIs, num_genes, pct_mito, sample_name = orig.ident, cluster)
   tsne_tbl = seurat_obj[["tsne"]]@cell.embeddings %>% round(3) %>% as.data.frame() %>% rownames_to_column("cell")
   umap_tbl = seurat_obj[["umap"]]@cell.embeddings %>% round(3) %>% as.data.frame() %>% rownames_to_column("cell")
@@ -145,7 +155,7 @@ calculate_cluster_stats = function(seurat_obj, label) {
   write_excel_csv(summary_cluster, path = glue("summary.{label}.csv"))
   
   # gene expression for an "average" cell in each identity class (averaging and output are in non-log space)
-  cluster_avg_exp = AverageExpression(seurat_obj, assay = "RNA", verbose = FALSE)[["RNA"]]
+  cluster_avg_exp = AverageExpression(seurat_obj, assay = "RNA", use.counts = TRUE, return.seurat = FALSE, verbose = FALSE)[["RNA"]]
   cluster_avg_exp = cluster_avg_exp %>% round(3) %>% rownames_to_column("gene") %>% arrange(gene)
   write_excel_csv(cluster_avg_exp, path = glue("expression.mean.{label}.csv"))
   

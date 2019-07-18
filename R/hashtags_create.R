@@ -1182,6 +1182,53 @@ seurat_plot_hto <- function(seurat_obj, out_path, proj_name) {
          units = "in")
 }
 
+
+create_seurat_obj_adt <- function(seurat_obj, out_dir, ADT_counts, proj_name, log_file) {
+  # add ADT slot to an existing seurat object
+  #
+  # Args:
+  #   seurat_obj: Seurat object
+  #   out_dir: Output directory
+  #   ADT_counts: ADT counts as a dataframe
+  #   proj_name: Name of project and name of output files
+  #
+  # Results:
+  #   A seurat object with ADT in ADT slot 
+  
+  s_obj <- seurat_obj
+  
+  message_str <- "\n\n ========== creating ADT slot ========== \n\n"
+  write_message(message_str, log_file)
+  
+  colnames(ADT_counts) <- str_c(proj_name, ":", colnames(ADT_counts))
+  
+  # check if the cells in the data are the same as the cells in the hashtag data
+  cells_to_use <- intersect(colnames(seurat_obj), colnames(ADT_counts))
+  
+  if(length(s_obj) != length(cells_to_use)){
+    message_str <- "some cells in scrna matrix not in ADT matrix"
+    write_message(message_str, log_file)
+  }
+  if(ncol(ADT_counts) != length(cells_to_use)){
+    message_str <- "some cells in ADT matrix not in scrna matrix"
+    write_message(message_str, log_file)
+  }
+  
+  # Subset RNA and HTO counts by joint cell barcodes
+  ADT_counts <- as.matrix(ADT_counts[, cells_to_use])
+  s_obj <- SubsetData(s_obj, cells = cells_to_use)
+  
+  # add hashtag slot
+  s_obj[["ADT"]] <- CreateAssayObject(counts = ADT_counts)
+  
+  # Normalize HTO data
+  s_obj <- NormalizeData(s_obj, assay = "ADT", normalization.method = "CLR")
+  s_obj <- ScaleData(s_obj, assay = "ADT")
+  
+  
+  return(s_obj)
+}
+
 # try clr outside of Seurat bc I can't figure out what Seurat actually does
 manual_hto <- function(HTO_counts, out_path, proj_name){
 

@@ -118,7 +118,7 @@ run_rsscore = function(module_tbl, counts_raw, min_cpm = 0, limit_pct = 1, count
   # perform the cell type enrichment calculation based on rescaled values
   
   module_list <- module_tbl %>%
-    filter(.$gene %in% rownames(counts_norm)) %>% 
+    filter(.$gene %in% rownames(counts_raw)) %>% 
     with(split(.$gene, celltype))
   
   if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
