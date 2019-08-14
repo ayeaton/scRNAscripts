@@ -80,66 +80,94 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
         file = log_file,
         append = TRUE)
 
+  # unfiltered ----------------------
   # read in count data from 10x
   counts_mat <- load_sample_counts_matrix(sample_names = sample_names,
                                           data_path = data_path,
                                           log_file = log_file)
 
   # take the counts matrix and make a seurat object
-  seurat_obj_1 <- create_seurat_obj(counts_mat = counts_mat, 
+  seurat_obj <- create_seurat_obj(counts_mat = counts_mat, 
                                     out_path = out_path, 
                                     proj_name = proj_name, 
                                     log_file = log_file)
   
    # save counts mat
-   save_counts_matrix(seurat_obj = seurat_obj_1,
+   save_counts_matrix(seurat_obj = seurat_obj,
                       out_path = out_path,
                       proj_name = proj_name,
                       log_file = log_file,
-                      type = "counts_unfiltered")
+                      type = "counts.unfiltered", 
+                      assay = "RNA",
+                      slot = "counts")
   
   # save unfiltered seurat metadata
-  save_seurat_metadata(seurat_obj = seurat_obj_1, 
+  save_seurat_metadata(seurat_obj = seurat_obj, 
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
                        type = "unfiltered")
     
   # plot qc of the unfiltered seurat object
-  plot_qc_seurat(seurat_obj = seurat_obj_1,
+  plot_qc_seurat(seurat_obj = seurat_obj,
                  out_dir = out_dir,
                  proj_name = proj_name,
                  type = "unfiltered")
 
+  # qc filter ----------------------------
   # filter seurat object for min genes, max genes and max mito pct
-  seurat_obj_2 <- filter_data(seurat_obj_1, 
+  seurat_obj <- filter_data(seurat_obj, 
                               out_dir = out_dir, 
                               proj_name = proj_name, 
                               log_file = log_file,
                               min_genes = min_genes, 
                               max_genes = max_genes, 
-                             max_mt = max_mt)
-  rm(seurat_obj_1)
+                              max_mt = max_mt))
   
   # plot qc plots for filtered seurat obj
-  plot_qc_seurat(seurat_obj = seurat_obj_2,
+  plot_qc_seurat(seurat_obj = seurat_obj,
                  out_dir = out_dir,
                  proj_name = proj_name,
                  type = "filtered")
-
-  # add hto data
+  
+  # save counts filtered data
+  save_counts_matrix(seurat_obj = seurat_obj,
+                     out_path = out_path,
+                     proj_name = proj_name,
+                     log_file = log_file,
+                     type = "counts.filtered")
+  
+  #save filtered metadata
+  save_seurat_metadata(seurat_obj = seurat_obj,
+                       out_path = out_path,
+                       log_file = log_file,
+                       proj_name = proj_name, 
+                       type = "filtered")
+  
+   
+  # Hashtags -------------------------
+  
+  # clean hto data
   hto_data <- clean_hto(HTO_file)
-
+  
   # here the proj name and the sample name have to match
-  seurat_obj_hto <- create_seurat_obj_hto(seurat_obj = seurat_obj_2, 
+  seurat_obj <- create_seurat_obj_hto(seurat_obj = seurat_obj, 
                                           HTO_counts = hto_data, 
                                       proj_name = proj_name, 
                                       out_dir = data_path,
                                       log_file = log_file, 
                                       hto_demux_quantile = 0.99,
                                       multi_demux_quantile = 0.7)
-  rm(seurat_obj_2)
 
+  # save normed HTO
+  save_counts_matrix(seurat_obj,
+                     out_path, 
+                     proj_name,
+                     type = "HTO.norm", 
+                     log_file,
+                     assay = "HTO",
+                     slot = "data")
+    
   # save metadata with HTO
   save_seurat_metadata(seurat_obj = seurat_obj_hto,
                        out_path = out_path,
@@ -159,8 +187,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                   out_path = out_path,
                   proj_name = proj_name)
   
-
+  # Add ADT data -----------------------
   
+
+  # Subset singlets ---------------------
   # manual_hto(seurat_obj, out_path, proj_name)
   
   # subset singlets
@@ -168,6 +198,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                     method = "HTO_demux", 
                                     log_file = log_file)
     
+  # normalize data -----------------
 
   # log normalize data
   seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj_hto_s, 
@@ -436,7 +467,7 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggr
   return(s_obj)
 }
 
-save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file) {
+save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, assay = "RNA", slot = "data") {
   # save counts matrix as a csv file (to be consistent with the rest of the tables)
   
   s_obj <- seurat_obj
@@ -447,7 +478,7 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file) 
   # save counts matrix as a basic gzipped text file
   # object@data stores normalized and log-transformed single cell expression
   # used for visualizations, such as violin and feature plots, most diff exp tests, finding high-variance genes
-  counts = GetAssayData(s_obj) %>%
+  counts = GetAssayData(s_obj, assay = assay) %>%
     as.matrix() %>%
     round(3)
   
