@@ -27,7 +27,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                     sample_names, # name of samples, can be more than 1
                                     out_path, # path to deposit outputs
                                     num_dim, # number of dimensions to use for PCA, UMAP, and TSNE
-                                    HTO_file, # path to HTO file
+                                    HTO_file, # path to HTO file,
+                                    ADT_file, # path to ADT file
                                     sct = FALSE, # use ScTransform or not
                                     proj_name = NULL, # name of project
                                     log_file = NULL, # name of log file
@@ -148,7 +149,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   # Hashtags -------------------------
   
   # clean hto data
-  hto_data <- clean_hto(HTO_file)
+  hto_data <- read_remove.unmapped(HTO_file)
   
   # here the proj name and the sample name have to match
   seurat_obj <- create_seurat_obj_hto(seurat_obj = seurat_obj, 
@@ -169,25 +170,32 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      slot = "data")
     
   # save metadata with HTO
-  save_seurat_metadata(seurat_obj = seurat_obj_hto,
+  save_seurat_metadata(seurat_obj = seurat_obj,
                        out_path = out_path,
                        log_file = log_file,
                        proj_name = proj_name, 
                        type = "HTO")
   
   # plot qc plots for filtered seurat obj with HTO
-  plot_qc_seurat(seurat_obj = seurat_obj_hto,
+  plot_qc_seurat(seurat_obj = seurat_obj,
                  out_dir = out_dir,
                  proj_name = proj_name,
                  type = "filtered.HTO",
                  group = "hash.ID")
 
   # plot HTO related plots
-  seurat_plot_hto(seurat_obj = seurat_obj_hto, 
+  seurat_plot_hto(seurat_obj = seurat_obj, 
                   out_path = out_path,
                   proj_name = proj_name)
   
   # Add ADT data -----------------------
+  adt_data <- read_remove.unmapped(ADT_file)
+  
+  seurat_obj <- create_seurat_obj_adt(seurat_obj = seurat_obj, 
+                                      out_dir = out_dir,
+                                      ADT_counts = adt_data,
+                                      proj_name = proj_name,
+                                      log_file = log_file)
   
 
   # Subset singlets ---------------------
@@ -1008,7 +1016,7 @@ plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay
   return(s_obj)
 }
 
-clean_hto <- function(HTO_file) {
+read_remove.unmapped <- function(HTO_file) {
   # remove unmapped row
   
   hto_matrix <- read.table(HTO_file)
@@ -1202,7 +1210,7 @@ create_seurat_obj_adt <- function(seurat_obj, out_dir, ADT_counts, proj_name, lo
   ADT_counts <- as.matrix(ADT_counts[, cells_to_use])
   s_obj <- SubsetData(s_obj, cells = cells_to_use)
   
-  # add hashtag slot
+  # add ADT slot
   s_obj[["ADT"]] <- CreateAssayObject(counts = ADT_counts)
   
   # Normalize HTO data
