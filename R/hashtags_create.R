@@ -555,7 +555,6 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
      width = 10,
      height = 6,
      units = "in")
-  })
 
   Sys.sleep(1)
 
