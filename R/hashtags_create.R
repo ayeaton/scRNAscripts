@@ -122,7 +122,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                               log_file = log_file,
                               min_genes = min_genes, 
                               max_genes = max_genes, 
-                              max_mt = max_mt))
+                              max_mt = max_mt)
   
   # plot qc plots for filtered seurat obj
   plot_qc_seurat(seurat_obj = seurat_obj,
