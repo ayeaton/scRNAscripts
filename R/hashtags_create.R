@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
   library(UpSetR)
   library(GGally)
   library(compositions)
+  library(reticulate)
 })
 
 
@@ -197,54 +198,97 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                       proj_name = proj_name,
                                       log_file = log_file)
   
-
+  # save normed ADTs
+  save_counts_matrix(seurat_obj,
+                     out_path, 
+                     proj_name,
+                     type = "ADT.norm", 
+                     log_file,
+                     assay = "ADT",
+                     slot = "data")
+  
+  
   # Subset singlets ---------------------
   # manual_hto(seurat_obj, out_path, proj_name)
   
   # subset singlets
-  seurat_obj_hto_s <- subset_singlets(seurat_obj = seurat_obj_hto,
+  seurat_obj <- subset_singlets(seurat_obj = seurat_obj,
                                     method = "HTO_demux", 
                                     log_file = log_file)
+  
+  # save normed ADTs singlet
+  save_counts_matrix(seurat_obj,
+                     out_path, 
+                     proj_name,
+                     type = "ADT.norm.singlet", 
+                     log_file,
+                     assay = "ADT",
+                     slot = "data")
+  
+  # save normed HTOs singlet
+  save_counts_matrix(seurat_obj,
+                     out_path, 
+                     proj_name,
+                     type = "HTO.norm.singlet", 
+                     log_file,
+                     assay = "HTO",
+                     slot = "data")
     
   # normalize data -----------------
 
   # log normalize data
-  seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj_hto_s, 
+  seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj, 
                                        out_path = out_path,
                                        proj_name = proj_name,
                                        log_file = log_file)
-  rm(seurat_obj_hto_s)
-  rm(seurat_obj_hto)
-  
   # save counts mat
   save_counts_matrix(seurat_obj = seurat_obj_log,
                      out_path = out_path,
                      proj_name = proj_name,
                      log_file = log_file,
-                     type = "norm")
+                     type = "log.norm")
   
   # calculate variance and plot 
-  seurat_obj_var <- calculate_variance(seurat_obj = seurat_obj_log,
+  seurat_obj_log <- calculate_variance(seurat_obj = seurat_obj_log,
                                    out_path = out_path,
                                    proj_name = proj_name,
                                    log_file = log_file)
-  rm(seurat_obj_log)
+  
+  if(sct == T){
+    # sctransform data ( should save the sctransform in a new data slot)
+    seurat_obj_sct <- sctransform_data(seurat_obj, out_path - out_path, log_file = log_file)
+    
+    
+    
+    seurat_obj_sct <- run_dimensionality_reduction(seurat_obj_sct, assay = "SCT", num_dim)
+    
+    
+    
+    saveRDS(seurat_obj_sct,
+            file = glue("{proj_name}.seurat_obj.rds"))
+    plot_dimensionality_reduction(seurat_obj_sct, out_path, proj_name, assay = "SCT", num_pcs = num_dim)
+  }
+
   
   # run PCA, TSNE and UMAP
-  seurat_obj_dim <- run_dimensionality_reduction(seurat_obj = seurat_obj_var, 
-                                             assay = "RNA", 
-                                             num_dim = num_dim,
-                                             log_file = log_file)
-  rm(seurat_obj_var)
+  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, matrix = NULL)
   
-  save_seurat_metadata(seurat_obj = seurat_obj_dim,
+  # add dim red to seurat object 
+  seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred)
+  
+
+  #save dim red in metadata 
+  
+  save_seurat_metadata(seurat_obj = seurat_obj_log,
+                       dim_red_list = seurat_log_dimred,
+                       dim_red_suffix = "RNA", 
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
                        type = "dim")
   
   # plot PCA, UMAP, TSNE 
-  plot_dimensionality_reduction(seurat_obj = seurat_obj_dim, 
+  plot_dimensionality_reduction(seurat_obj = seurat_obj_log, 
                                 out_path = out_path, 
                                 proj_name = proj_name, 
                                 log_file = log_file,
@@ -252,14 +296,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                 num_pcs = num_dim)
   
 
-  if(sct == T){
-    # sctransform data ( should save the sctransform in a new data slot)
-    seurat_obj <- sctransform_data(seurat_obj)
-    seurat_obj <- run_dimensionality_reduction(seurat_obj, assay = "SCT", num_dim)
-    saveRDS(seurat_obj,
-            file = glue("{proj_name}.seurat_obj.rds"))
-    plot_dimensionality_reduction(seurat_obj, out_path, proj_name, assay = "SCT", num_pcs = num_dim)
-  }
+
   saveRDS(seurat_obj_dim,
           file = glue("{proj_name}.seurat_obj.rds"))
 }
@@ -501,7 +538,7 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, 
   rm(counts)
 }
 
-save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file) {
+save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, dim_red_suffix = NULL, out_path, proj_name, type, log_file) {
   # save metadata from seurat object 
   
   message_str <- "\n\n ========== saving metadata ========== \n\n"
@@ -509,27 +546,40 @@ save_seurat_metadata <- function(seurat_obj, out_path, proj_name, type, log_file
   
   s_obj <- seurat_obj
   
-  if (length(which(names(s_obj@reductions) %in% "tsne")) > 0  & length(which(names(s_obj@reductions) %in% "umap")) > 0) {
+  if (!is.null(dim_red)) {
+    if(is.null(dim_red_suffix)){
+      message_str <- "Watch out: This dimensionality reduction will not get a unique name"
+      write_message(message_str, log_file)
+    }
+    
     # compile all cell metadata into a single table
     metadata_tbl = s_obj@meta.data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident)
     
-    tsne_tbl = s_obj[["tsne"]]@cell.embeddings %>%
-      round(3) %>%
-      as.data.frame() %>%
-      rownames_to_column("cell")
+    names(dim_red_list) <- paste(names(dim_red_list), dim_red_suffix, sep = "_")
     
-    umap_tbl = s_obj[["umap"]]@cell.embeddings %>%
-      round(3) %>%
-      as.data.frame() %>%
-      rownames_to_column("cell")
+    umap <- dim_red_list[[grep("^umap", names(dim_red_list))]] %>% 
+      as.data.frame() %>% 
+      rownames_to_column("cell") %>% 
+      as_tibble() 
+    
+    tsne <- dim_red_list[[grep("^tsne", names(dim_red_list))]] %>% 
+      as.data.frame() %>% 
+      rownames_to_column("cell") %>% 
+      as_tibble() 
+    
+    pca <- dim_red_list[[grep("^cell.embeddings", names(dim_red_list))]] %>% 
+      as.data.frame() %>% 
+      rownames_to_column("cell") %>% 
+      as_tibble() 
     
     cells_metadata = metadata_tbl %>%
-      full_join(tsne_tbl, by = "cell") %>%
-      full_join(umap_tbl, by = "cell")
-    
+      full_join(umap ,by = "cell") %>% 
+      full_join(tsne, by = "cell") %>% 
+      full_join(pca, by = "cell")
+
     cells_metadata = cells_metadata %>%
       arrange(cell)
   } else {
@@ -808,7 +858,7 @@ calculate_variance <- function(seurat_obj, out_path, proj_name, log_file){
   return(s_obj)
 }
 
-sctransform_data <- function(seurat_obj){
+sctransform_data <- function(seurat_obj, out_path, log_file){
   # sc transform data
   
   s_obj <-seurat_obj
@@ -838,47 +888,137 @@ sctransform_data <- function(seurat_obj){
 
   # log to file
   # log to file
-  write(glue("filtered cells: {ncol(s_obj)}"), file = "create.log", append = TRUE)
-  write(glue("filtered genes: {nrow(s_obj)}"), file = "create.log", append = TRUE)
-  write(glue("filtered mean num genes: {round(mean(s_obj$num_genes), 3)}"), file = "create.log", append = TRUE)
-  write(glue("filtered median num genes: {median(s_obj$num_genes)}"), file = "create.log", append = TRUE)
+  write(glue("filtered cells: {ncol(s_obj)}"), file = log_file, append = TRUE)
+  write(glue("filtered genes: {nrow(s_obj)}"), file = log_file, append = TRUE)
+  write(glue("filtered mean num genes: {round(mean(s_obj$num_genes), 3)}"), file = log_file, append = TRUE)
+  write(glue("filtered median num genes: {median(s_obj$num_genes)}"), file = log_file, append = TRUE)
 
   return(s_obj)
 
 }
 
-run_dimensionality_reduction <- function(seurat_obj, assay, num_dim, log_file) {
-  # Runs PCA, UMAP, and TSNE - UMAP AND TSNE use all PCs
-  
-  s_obj <- seurat_obj
+run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file, matrix = NULL){
   
   message_str <- "\n\n ========== dimensionality reduction ========== \n\n"
   write_message(message_str, log_file)
   
-  if (ncol(s_obj) < 100) num_dim = 20
-  if (ncol(s_obj) < 25) num_dim = 5
+  if(!is.null(seurat_obj)){
+    data <- Seurat:::PrepDR(object = seurat_obj,
+           features = NULL,
+           verbose = TRUE)
+  } else if(!is.null(matrix)){
+    data <- matrix
+  } else {
+    message_str <- "ERROR: either input a seurat object or a matrix"
+    write_message(message_str, log_file)
+    data = NULL
+  }
+  
+  pca_out <- run_pca(data = data,
+                     num_dim = num_pcs)
+  
+  feature.loadings <- pca_out[[1]]
+  cell.embeddings <- pca_out[[2]]
+  sdev = pca_out[[3]]
+  
+  tsne_out <- run_tsne(cell.embeddings[,1:num_dim])
+  umap_out <- run_umap(cell.embeddings[,1:num_dim])
+  
+  return(list(feature.loadings = feature.loadings,
+              cell.embeddings = cell.embeddings, 
+              sdev = sdev, 
+              tsne_out = tsne_out,
+              umap_out = umap_out))
+}
 
-  # PCA on the scaled data
-  # PCA calculation stored in object[["pca"]]
-  s_obj <- RunPCA(s_obj, 
-                  assay = assay, 
-                  features = VariableFeatures(s_obj),
-                  npcs = num_dim, 
-                  verbose = FALSE)
+# run pca on the most variable genes
+run_pca <- function(data, num_dim, reduction.key = "PC_"){
+  # copied from the Seurat package
+  
+  npcs <- min(num_dim, nrow(data))
+  pca.results <- prcomp(t(data), rank. = npcs)
+  feature.loadings <- pca.results$rotation
+  sdev <- pca.results$sdev
+  total.variance <- sum(sdev)
+  cell.embeddings <- pca.results$x
+  
+  
+  rownames(x = feature.loadings) <- rownames(data)
+  colnames(x = feature.loadings) <- paste0(reduction.key, 1:npcs)
+  rownames(x = cell.embeddings) <- colnames(data)
+  colnames(x = cell.embeddings) <- colnames(x = feature.loadings)
+  
+  return(list(feature.loadings, cell.embeddings, sdev))
+}
 
-  s_obj = RunTSNE(s_obj, 
-                  reduction = "pca",
-                  assay = assay, 
-                  dims.use = 1:num_dim)
+run_tsne <- function(data, seed.use = 1, tsne.method ='Rtsne',  dim.embed = 2, reduction.key = "tSNE_"){
+  #copied from the Seurat package
+    set.seed(seed = seed.use)
+    tsne.data <- switch(
+      EXPR = tsne.method,
+      'Rtsne' = Rtsne(data, dims = dim.embed)$Y,
+      'FIt-SNE' = fftRtsne(data, dims = dim.embed, rand_seed = seed.use),
+      stop("Invalid tSNE method: please choose from 'Rtsne' or 'FIt-SNE'")
+    )
 
-  # runs the Uniform Manifold Approximation and Projection (UMAP) dimensional reduction technique
-  s_obj = RunUMAP(s_obj,
-                  reduction = "pca", 
-                  assay = assay, 
-                  dims = 1:num_dim, 
-                  verbose = FALSE)
+    colnames(x = tsne.data) <- paste0(reduction.key, 1:ncol(x = tsne.data))
+    rownames(x = tsne.data) <- rownames(x = data)
 
-  return(s_obj)
+    return(tsne.data)
+}
+
+run_umap <- function(object, seed.use = 42L, n.neighbors = 30L, n.components = 2L, metric = "correlation",
+                     n.epochs = NULL, learning.rate = 1, min.dist = 0.3, spread = 1, set.op.mix.ratio = 1,
+                     local.connectivity = 1L, repulsion.strength = 1, negative.sample.rate = 5L, 
+                     a = NULL, b = NULL, metric.kwds = NULL, verbose = TRUE,angular.rp.forest = FALSE, reduction.key = 'UMAP_'){
+  #copied from the seurat package
+  if (!py_module_available(module = 'umap')) {
+    stop("Cannot find UMAP, please install through pip (e.g. pip install umap-learn).")
+  }
+  if (!is.null(x = seed.use)) {
+    set.seed(seed = seed.use)
+    py_set_seed(seed = seed.use)
+  }
+  if (typeof(x = n.epochs) == "double") {
+    n.epochs <- as.integer(x = n.epochs)
+  }
+  umap_import <- import(module = "umap", delay_load = TRUE)
+  umap <- umap_import$UMAP(
+    n_neighbors = as.integer(x = n.neighbors),
+    n_components = as.integer(x = n.components),
+    metric = metric,
+    n_epochs = n.epochs,
+    learning_rate = learning.rate,
+    min_dist = min.dist,
+    spread = spread,
+    set_op_mix_ratio = set.op.mix.ratio,
+    local_connectivity = local.connectivity,
+    repulsion_strength = repulsion.strength,
+    negative_sample_rate = negative.sample.rate,
+    a = a,
+    b = b,
+    metric_kwds = metric.kwds,
+    angular_rp_forest = angular.rp.forest,
+    verbose = verbose
+  )
+  umap_output <- umap$fit_transform(as.matrix(x = object))
+  colnames(x = umap_output) <- paste0(reduction.key, 1:ncol(x = umap_output))
+  rownames(x = umap_output) <- rownames(object)
+  
+  return(umap_output)
+}
+
+add_dim_red_seurat <- function(seurat_obj, dim_red_list){
+  pca.reduction <- CreateDimReducObject(embeddings = dim_red_list$cell.embeddings, loadings = dim_red_list$feature.loadings, 
+                                        assay = NULL, stdev = dim_red_list$sdev, key = reduction.key,
+                                        misc = list(total.variance = sum(dim_red_list$sdev)))
+  tsne.reduction <- CreateDimReducObject(embeddings = dim_red_list$tsne_out, key = reduction.key, assay = NULL)
+  umap.reduction <- CreateDimReducObject(embeddings = dim_red_list$umap_out, key = reduction.key, assay = NULL)
+  
+  seurat_obj[["pca"]] <- pca.reduction
+  seurat_obj[["tsne"]] <- tsne.reduction
+  seurat_obj[["umap"]] <- umap.reduction
+  return(seurat_obj)
 }
 
 plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, log_file, num_pcs = 30){
