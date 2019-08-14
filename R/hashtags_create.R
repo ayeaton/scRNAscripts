@@ -1,4 +1,4 @@
-
+ 
 # create s obj with and without use of hashtags
 
 # TODO: remove libraries 
@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
   library(Matrix)
   library(tidyverse)
   library(data.table)
+  library(ggplot2); theme_set(theme_bw())
   library(cowplot)
   library(scales)
   library(pheatmap)
@@ -90,12 +91,12 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                     proj_name = proj_name, 
                                     log_file = log_file)
   
-  # # save counts mat
-  # save_counts_matrix(seurat_obj = seurat_obj_1,
-  #                    out_path = out_path,
-  #                    proj_name = proj_name,
-  #                    log_file = log_file,
-  #                    type = "raw")
+   # save counts mat
+   save_counts_matrix(seurat_obj = seurat_obj_1,
+                      out_path = out_path,
+                      proj_name = proj_name,
+                      log_file = log_file,
+                      type = "counts_unfiltered")
   
   # save unfiltered seurat metadata
   save_seurat_metadata(seurat_obj = seurat_obj_1, 
@@ -520,118 +521,71 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
   s_obj <- seurat_obj
   
   colors_samples_named <-  create_color_vect(s_obj, group = group)
+  
+  # num genes violin
+  num_genes_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_genes), y = num_genes, fill = eval(as.name(group)))) +
+    geom_violin() +
+    xlab(group) +
+    ylab("Number of genes per cell") +
+    scale_fill_manual(values = colors_samples_named,
+                      name = group)
+  
+  num_umi_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_UMIs), y = num_UMIs, fill = eval(as.name(group)))) +
+    geom_violin() +
+    xlab(group) +
+    ylab("Number of UMIs per cell") +
+    scale_fill_manual(values = colors_samples_named,
+                      name = group)
+  
+  pct_mito_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), pct_mito), y = pct_mito, fill = eval(as.name(group)))) +
+    geom_violin() +
+    xlab(group) +
+    ylab("Percent Mitochondrial gene expression per cell") +
+    scale_fill_manual(values = colors_samples_named,
+                      name = group)
 
-  vln_theme =
-    theme(
-      axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
-      axis.text.x = element_text(angle = 90,
-                                 vjust = 0.5,
-                                 hjust = 1),
-      legend.position = "none"
-    )
-
-  suppressMessages({
-
-    # num genes violin
-    dist_unfilt_nft_plot =
-      VlnPlot(
-        s_obj,
-        features = "num_genes",
-        group.by = group,
-        pt.size = 0.1,
-        sort = TRUE,
-        combine = TRUE,
-        cols = colors_samples_named
-      ) +
-      scale_y_continuous(labels = comma) +
-      vln_theme
-
-    #num umi violin
-    dist_unfilt_nct_plot =
-      VlnPlot(
-        s_obj,
-        features = "num_UMIs",
-        group.by = group,
-        pt.size = 0.1,
-        sort = TRUE,
-        combine = TRUE,
-        cols = colors_samples_named
-      ) +
-      scale_y_continuous(labels = comma) +
-      vln_theme
-
-    # percent mito violin
-    dist_unfilt_pmt_plot =
-      VlnPlot(
-        s_obj,
-        features = "pct_mito",
-        group.by = group,
-        pt.size = 0.1,
-        sort = TRUE,
-        combine = TRUE,
-        cols = colors_samples_named
-      ) +
-      scale_y_continuous(labels = comma) +
-      vln_theme
-
-
-    dist_unfilt_plot = plot_grid(dist_unfilt_nft_plot,
-                                 dist_unfilt_nct_plot,
-                                 dist_unfilt_pmt_plot,
+  qc_violin_plot = plot_grid(num_genes_violin,
+                               num_umi_violin,
+                               pct_mito_violin,
                                  ncol = 3)
 
 
-    ggsave(file = glue("{out_path}/{proj_name}.{type}.qc.png"),
-           plot = dist_unfilt_plot,
-           width = 10,
-           height = 6,
-           units = "in")
+  ggsave(file = glue("{out_path}/{proj_name}.{type}.qc.png"),
+     plot = qc_violin_plot,
+     width = 10,
+     height = 6,
+     units = "in")
   })
 
   Sys.sleep(1)
 
 
-  cor_ncr_nfr_plot =
-    FeatureScatter(
-      s_obj,
-      feature1 = "num_UMIs",
-      feature2 = "num_genes",
-      group.by = group,
-      cols = colors_samples_named
-    ) +
-    theme(aspect.ratio = 1)
-
-  cor_ncr_pmt_plot =
-    FeatureScatter(
-      s_obj,
-      feature1 = "num_UMIs",
-      feature2 = "pct_mito",
-      group.by = group,
-      cols = colors_samples_named
-    ) +
-    theme(aspect.ratio = 1)
-
-
-  cor_nfr_pmt_plot =
-    FeatureScatter(
-      s_obj,
-      feature1 = "num_genes",
-      feature2 = "pct_mito",
-      group.by = group,
-      cols = colors_samples_named
-    ) +
-    theme(aspect.ratio = 1)
-
-
-  cor_unfilt_plot = plot_grid(cor_ncr_nfr_plot,
-                              cor_ncr_pmt_plot,
-                              cor_nfr_pmt_plot,
+  UMI_gene_scatter <- ggplot(s_obj@meta.data, aes(x = num_UMIs, y = num_genes, col = eval(as.name(group)))) +
+    geom_point() +
+    scale_color_manual(values = colors_samples_named, 
+                       name = group) +
+    coord_fixed(ratio = max(s_obj@meta.data$num_UMI)/max(s_obj@meta.data$num_genes))
+    
+  UMI_mito_scatter <- ggplot(s_obj@meta.data, aes(x = num_UMIs, y = pct_mito, col = eval(as.name(group)))) +
+    geom_point() +
+    scale_color_manual(values = colors_samples_named, 
+                       name = group) +
+    coord_fixed(ratio = max(s_obj@meta.data$num_UMI)/max(s_obj@meta.data$pct_mito))
+  
+  genes_mito_scatter <-  ggplot(s_obj@meta.data, aes(x = num_genes, y = pct_mito, col = eval(as.name(group)))) +
+    geom_point() +
+    scale_color_manual(values = colors_samples_named, 
+                       name = group) +
+    coord_fixed(ratio = max(s_obj@meta.data$num_genes)/max(s_obj@meta.data$pct_mito))
+  
+  qc_scatter_plots = plot_grid(UMI_gene_scatter,
+                              UMI_mito_scatter,
+                              genes_mito_scatter,
                               ncol = 3)
 
 
   ggsave(glue("{out_path}/{proj_name}.{type}.qc.correlations.png"),
-         plot = cor_unfilt_plot,
+         plot = qc_scatter_plots,
          width = 18,
          height = 5,
          units = "in")
