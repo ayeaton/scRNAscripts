@@ -1059,7 +1059,7 @@ create_seurat_obj_hto <- function(seurat_obj, out_dir, HTO_counts, proj_name, lo
 
   # Subset RNA and HTO counts by joint cell barcodes
   HTO_counts <- as.matrix(HTO_counts[, cells_to_use])
-  s_obj <- SubsetData(s_obj, cells = cells_to_use)
+  s_obj <- subset(s_obj, cells = cells_to_use)
 
   # add hashtag slot
   s_obj[["HTO"]] <- CreateAssayObject(counts = HTO_counts)
@@ -1208,7 +1208,7 @@ create_seurat_obj_adt <- function(seurat_obj, out_dir, ADT_counts, proj_name, lo
   
   # Subset RNA and HTO counts by joint cell barcodes
   ADT_counts <- as.matrix(ADT_counts[, cells_to_use])
-  s_obj <- SubsetData(s_obj, cells = cells_to_use)
+  s_obj <- subset(s_obj, cells = cells_to_use)
   
   # add ADT slot
   s_obj[["ADT"]] <- CreateAssayObject(counts = ADT_counts)
