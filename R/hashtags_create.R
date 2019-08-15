@@ -235,7 +235,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      slot = "data")
   
   # cluster based on ADTs ----------
-  ADT_data <- seurat_obj@assay
+  ADT_data <- seurat_obj@assayRADT@data
+  seurat_log_dimred <- run_dimensionality_reduction(NULL, 5, 5, "test", matrix = test)
   
     
   # normalize data -----------------
@@ -950,7 +951,7 @@ run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file
                                              sep = ""))
   
   umap_out <- run_umap(cell.embeddings[,1:num_dim],
-                       reduction.key = paste("tSNE",
+                       reduction.key = paste("UMAP",
                                              dim_red_suffix,
                                              sep = ""))
   
