@@ -237,11 +237,18 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   # cluster based on ADTs ----------
   ADT_data <- seurat_obj@assays$ADT@data
   
-  ADT_dimred <- run_dimensionality_reduction(ADT_data,num_pcs, num_dim, log_file, dim_red_suffix = ".ADT_")
+  ADT_dimred <- run_dimensionality_reduction(ADT_data,num_pcs, num_dim, log_file, dim_red_suffix = ".ADT")
   
-  seurat_obj_adt <-  add_dim_red_seurat(seurat_obj, ADT_dimred, dim_red_suffix = ".ADT_")
+  seurat_obj_adt <-  add_dim_red_seurat(seurat_obj, ADT_dimred, dim_red_suffix = ".ADT")
   
-    
+  ADT_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_adt,
+                       dim_red_list = ADT_dimred,
+                       out_path = out_path,
+                       proj_name = proj_name, 
+                       log_file = log_file,
+                       type = "dim.adt")
+  
+  
   # normalize data -----------------
 
   # log normalize data
@@ -263,10 +270,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                    log_file = log_file)
   
   # run PCA, TSNE and UMAP
-  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, dim_red_suffix = ".log_")
+  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, dim_red_suffix = ".log")
   
   # add dim red to seurat object 
-  seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred, dim_red_suffix = ".log_")
+  seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred, dim_red_suffix = ".log")
   
   
   #save dim red in metadata 
@@ -283,10 +290,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     seurat_obj_sct <- sctransform_data(seurat_obj, out_path = out_path, log_file = log_file, proj_name = proj_name)
     
     # run PCA, TSNE and UMAP
-    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_pcs, num_dim, log_file, dim_red_suffix = ".sct_")
+    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_pcs, num_dim, log_file, dim_red_suffix = ".sct")
     
     # add dim red to seurat object 
-    seurat_obj_sct <-  add_dim_red_seurat(seurat_obj_sct, seurat_sct_dimred, dim_red_suffix = ".sct_")
+    seurat_obj_sct <-  add_dim_red_seurat(seurat_obj_sct, seurat_sct_dimred, dim_red_suffix = ".sct")
     
     
     #save dim red in metadata 
@@ -604,6 +611,7 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
       arrange(cell)
   }
   write_excel_csv(cells_metadata, path = glue("{out_path}/{proj_name}.{type}.metadata.csv"))
+  return(cells_metadata)
 }
 
 create_color_vect <- function(seurat_obj, group = "orig.ident") {
@@ -1069,6 +1077,11 @@ add_dim_red_seurat <- function(seurat_obj, dim_red_list, dim_red_suffix = NULL){
   seurat_obj[[paste("umap", dim_red_suffix, sep = "")]] <- umap.dim.reduc
   
   return(seurat_obj)
+}
+
+plot_dimentionality_reduction <- function(dim_red_list, out_path, proj_name, assay, log_file, num_pcs = 30){
+  
+  
 }
 
 plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, log_file, num_pcs = 30){
