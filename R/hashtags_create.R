@@ -234,7 +234,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      assay = "HTO",
                      slot = "data")
   
-  # cluster based on ADTs ----------
+  # dimred based on ADTs ----------
   ADT_data <- seurat_obj@assays$ADT@data
   
   ADT_dimred <- run_dimensionality_reduction(ADT_data,num_pcs, num_dim, log_file, dim_red_suffix = ".ADT")
@@ -248,10 +248,32 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                        log_file = log_file,
                        type = "dim.adt")
   
-  
-  # normalize data -----------------
+  plot_scatter(metadata = ADT_dim_metadata,
+               out_path = out_path,
+               proj_name = proj_name,
+               log_file = log_file,
+               X = "UMAP.ADT1",
+               Y = "UMAP.ADT2",
+               color = "orig.ident"))
 
-  # log normalize data
+  plot_scatter(metadata = ADT_dim_metadata,
+             out_path = out_path,
+             proj_name = proj_name,
+             log_file = log_file,
+             X = "tSNE.ADT1",
+             Y = "tSNE.ADT2",
+             color = "orig.ident"))
+
+  plot_scatter(metadata = ADT_dim_metadata,
+             out_path = out_path,
+             proj_name = proj_name,
+             log_file = log_file,
+             X = "PC.ADT1",
+             Y = "PC.ADT2",
+             color = "orig.ident"))
+  
+  
+  # log normalize data ----------
   seurat_obj_log <- log_normalize_data(seurat_obj = seurat_obj, 
                                        out_path = out_path,
                                        proj_name = proj_name,
@@ -277,15 +299,50 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   
   
   #save dim red in metadata 
-  
-  save_seurat_metadata(seurat_obj = seurat_obj_log,
+  log_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_log,
                        dim_red_list = seurat_log_dimred,
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
                        type = "dim.log")
   
-  if(sct == T){
+  log_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_log,
+                                           dim_red_list = seurat_log_dimred,
+                                           out_path = out_path,
+                                           proj_name = proj_name, 
+                                           log_file = log_file,
+                                           type = "dim.adt")
+  
+  plot_scatter(metadata = log_dim_metadata,
+                 out_path = out_path,
+                 proj_name = proj_name,
+                 log_file = log_file,
+                 X = "UMAP.log1",
+                 Y = "UMAP.log2",
+                 color = "orig.ident"))
+  
+  plot_scatter(metadata = log_dim_metadata,
+               out_path = out_path,
+               proj_name = proj_name,
+               log_file = log_file,
+               X = "tSNE.log1",
+               Y = "tSNE.log2",
+               color = "orig.ident"))
+  
+  plot_scatter(metadata = log_dim_metadata,
+               out_path = out_path,
+               proj_name = proj_name,
+               log_file = log_file,
+               X = "PC.log1",
+               Y = "PC.log2",
+               color = "orig.ident"))
+
+  
+  saveRDS(seurat_obj_log,
+          file = glue("{proj_name}.log.seurat_obj.rds"))
+  
+  # sct normalize data -----------------
+  if(sct == TRUE){
     # sctransform data ( should save the sctransform in a new data slot)
     seurat_obj_sct <- sctransform_data(seurat_obj, out_path = out_path, log_file = log_file, proj_name = proj_name)
     
@@ -297,32 +354,43 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     
     
     #save dim red in metadata 
-    save_seurat_metadata(seurat_obj = seurat_obj_sct,
-                         dim_red_list = seurat_log_dimred,
-                         out_path = out_path,
-                         proj_name = proj_name, 
-                         log_file = log_file,
-                         type = "dim.sct")
+    sct_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_sct,
+                           dim_red_list = seurat_sct_dimred,
+                           out_path = out_path,
+                           proj_name = proj_name, 
+                           log_file = log_file,
+                           type = "dim.sct")
+    
+    
+    plot_scatter(metadata = sct_dim_metadata,
+                 out_path = out_path,
+                 proj_name = proj_name,
+                 log_file = log_file,
+                 X = "UMAP.sct1",
+                 Y = "UMAP.sct2",
+                 color = "orig.ident"))
+
+    plot_scatter(metadata = sct_dim_metadata,
+                 out_path = out_path,
+                 proj_name = proj_name,
+                 log_file = log_file,
+                 X = "tSNE.sct1",
+                 Y = "tSNE.sct2",
+                 color = "orig.ident"))
+    
+    plot_scatter(metadata = sct_dim_metadata,
+                 out_path = out_path,
+                 proj_name = proj_name,
+                 log_file = log_file,
+                 X = "PC.sct1",
+                 Y = "PC.sct2",
+                 color = "orig.ident"))
+    
     
     saveRDS(seurat_obj_sct,
             file = glue("{proj_name}.sct.seurat_obj.rds"))
-    
-    plot_dimensionality_reduction(seurat_obj_sct,log_file = log_file, out_path, proj_name, assay = "SCT", num_pcs = num_dim)
   }
 
-  
-  
-  
-  # plot PCA, UMAP, TSNE 
-  plot_dimensionality_reduction(seurat_obj = seurat_obj_log, 
-                                out_path = out_path, 
-                                proj_name = proj_name, 
-                                log_file = log_file,
-                                assay = "RNA",
-                                num_pcs = num_dim)
-
-  saveRDS(seurat_obj_dim,
-          file = glue("{proj_name}.seurat_obj.rds"))
 }
 
 write_message <- function(message_str, log_file) {
@@ -616,10 +684,12 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
 
 create_color_vect <- function(seurat_obj, group = "orig.ident") {
   # create a vector of colors for the Idents of the s_obj
-  s_obj <- seurat_obj
+  sample_names <- switch(class(seurat_obj),
+                 Seurat = s_obj[[group]] %>% unique() %>% arrange(get(group)),
+                 data.frame = unique(seurat_obj))
+  
   colors_samples = c(brewer.pal(5, "Set1"), brewer.pal(8, "Dark2"), pal_igv("default")(51))
   # create a named color scheme to ensure names and colors are in the proper order
-  sample_names = s_obj[[group]] %>% unique() %>% arrange(get(group))
   sample_names[] <- lapply(sample_names, as.character)
   colors_samples_named = colors_samples[1:nrow(sample_names)]
   names(colors_samples_named) = sample_names[,1]
@@ -1079,145 +1149,26 @@ add_dim_red_seurat <- function(seurat_obj, dim_red_list, dim_red_suffix = NULL){
   return(seurat_obj)
 }
 
-plot_dimentionality_reduction <- function(dim_red_list, out_path, proj_name, assay, log_file, num_pcs = 30){
+plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color){
   
+  colors_samples_named <- create_color_vect(as.data.frame(metadata[color]))
   
-}
+  current_plot <- ggplot(metadata, aes(x = eval(as.name(X)), y = eval(as.name(Y)), color = eval(as.name(color)))) +
+    geom_point() +
+    coord_fixed(ratio = max(metadata[X])/max(metadata[Y])) +
+    xlab(X) + 
+    ylab(Y) +
+    scale_color_manual(values = colors_samples_named, 
+                       name = color)
 
-plot_dimensionality_reduction <- function(seurat_obj, out_path, proj_name, assay, log_file, num_pcs = 30){
-
-  s_obj <- seurat_obj
-
-  Idents(s_obj) <- "orig.ident"
-
-  colors_samples_named <- create_color_vect(seurat_obj)
-
-  # reduce point size for larger datasets
-  dr_pt_size = get_dr_point_size(s_obj)
-
-  message_str <- "\n\n ========== plotting dimensionality reduction ========== \n\n"
-
-  # plot the output of PCA analysis (shuffle cells so any one group does not appear overrepresented due to ordering)
-  pca_plot =
-    DimPlot(
-      s_obj,
-      cells = sample(colnames(s_obj)),
-      group.by = "orig.ident",
-      reduction = "pca",
-      pt.size = 0.5,
-      cols = colors_samples_named
-    ) +
-    theme(aspect.ratio = 1)
-  ggsave(glue("{out_path}/{proj_name}.{assay}.variance.pca.png"),
-         plot = pca_plot,
+  
+  ggsave(glue("{out_path}/{proj_name}.{X}.{Y}.{color}.png"),
+         plot = current_plot,
          width = 8,
          height = 6,
          units = "in")
-
-  message_str <- "\n\n ========== Seurat::DimHeatmap() ========== \n\n"
-  write_message(message_str, log_file)
-
-  # PCHeatmap (former) allows for easy exploration of the primary sources of heterogeneity in a dataset
-  png(glue("{out_path}/{proj_name}.{assay}.variance.pca.heatmap.png"),
-      res = 300,
-      width = 10,
-      height = 16,
-      units = "in")
-  DimHeatmap(s_obj,
-             reduction = "pca",
-             dims = 1:15,
-             nfeatures = 20,
-             cells = 250,
-             fast = TRUE)
-  dev.off()
-
-  message_str <- "\n\n ========== Seurat::PCElbowPlot() ========== \n\n"
-  write_message(message_str, log_file)
-
-  # a more ad hoc method for determining PCs to use, draw cutoff where there is a clear elbow in the graph
-  elbow_plot = ElbowPlot(s_obj,
-                         reduction = "pca",
-                         ndims = num_pcs)
-
-  ggsave(glue("{out_path}/{proj_name}.{assay}.variance.pca.elbow.png"),
-         plot = elbow_plot,
-         width = 8,
-         height = 5,
-         units = "in")
-
-  # tSNE using original sample names (shuffle cells so any one group does not appear overrepresented due to ordering)
-  plot_tsne =
-    DimPlot(s_obj, reduction = "tsne",
-            cells = sample(colnames(s_obj)),
-            pt.size = dr_pt_size,
-            cols = colors_samples_named) +
-    theme(aspect.ratio = 1)
-
-  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.sample.png"),
-         plot = plot_tsne,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-
-  ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.sample.pdf"),
-         plot = plot_tsne,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-  
-  # features_plot <- names(s_obj[[]][which(names(s_obj[[]]) %in% c("num_UMIs", 
-  #                                                                 "num_genes", 
-  #                                                                 "pct_mito",
-  #                                                                 "hash.ID", 
-  #                                                                 "HTO_classification.global"))])
-  # 
-  # feature_tsne =
-  #   FeaturePlot(s_obj, reduction = "tsne",
-  #               cells = sample(colnames(s_obj)),
-  #               pt.size = dr_pt_size,
-  #               features = features_plot) +
-  #   theme(aspect.ratio = 1)
-  # 
-  # ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.png"),
-  #        plot = feature_tsne,
-  #        width = 10,
-  #        height = 6,
-  #        units = "in")
-  # Sys.sleep(1)
-  # 
-  # ggsave(glue("{out_path}/{proj_name}.{assay}.tsne.{num_dim}.features.pdf"),
-  #        plot = feature_tsne,
-  #        width = 10,
-  #        height = 6,
-  #        units = "in")
-  # Sys.sleep(1)
-  # 
-  # tSNE using original sample names (shuffle cells so any one group does not appear overrepresented due to ordering)
-  plot_umap =
-    DimPlot(s_obj, reduction = "umap",
-            cells = sample(colnames(s_obj)),
-            pt.size = dr_pt_size,
-            cols = colors_samples_named) +
-    theme(aspect.ratio = 1)
-
-  ggsave(glue("{out_path}/{proj_name}.{assay}.umap.{num_dim}.sample.png"),
-         plot = plot_umap,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-
-  ggsave(glue("{out_path}/{proj_name}.{assay}.umap.{num_dim}.sample.pdf"),
-         plot = plot_umap,
-         width = 10,
-         height = 6,
-         units = "in")
-  Sys.sleep(1)
-
-  return(s_obj)
 }
+
 
 read_remove.unmapped <- function(HTO_file) {
   # remove unmapped row
