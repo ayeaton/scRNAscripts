@@ -21,6 +21,7 @@ suppressPackageStartupMessages({
   library(GGally)
   library(compositions)
   library(reticulate)
+  library(Rtsne)
 })
 
 
@@ -237,7 +238,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   # dimred based on ADTs ----------
   ADT_data <- seurat_obj@assays$ADT@data
   
-  ADT_dimred <- run_dimensionality_reduction(ADT_data,num_pcs, num_dim, log_file, dim_red_suffix = ".ADT")
+  ADT_dimred <- run_dimensionality_reduction(ADT_data,num_dim, num_dim, log_file, dim_red_suffix = ".ADT")
   
   seurat_obj_adt <-  add_dim_red_seurat(seurat_obj, ADT_dimred, dim_red_suffix = ".ADT")
   
@@ -292,11 +293,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                    log_file = log_file)
   
   # run PCA, TSNE and UMAP
-  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, dim_red_suffix = ".log")
+  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_dim, num_dim, log_file, dim_red_suffix = ".log")
   
   # add dim red to seurat object 
   seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred, dim_red_suffix = ".log")
-  
   
   #save dim red in metadata 
   log_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_log,
@@ -347,7 +347,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     seurat_obj_sct <- sctransform_data(seurat_obj, out_path = out_path, log_file = log_file, proj_name = proj_name)
     
     # run PCA, TSNE and UMAP
-    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_pcs, num_dim, log_file, dim_red_suffix = ".sct")
+    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_dim, num_dim, log_file, dim_red_suffix = ".sct")
     
     # add dim red to seurat object 
     seurat_obj_sct <-  add_dim_red_seurat(seurat_obj_sct, seurat_sct_dimred, dim_red_suffix = ".sct")
@@ -637,11 +637,6 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
   
 
   if (!is.null(dim_red_list)) {
-    if(is.null(dim_red_suffix)){
-      message_str <- "Watch out: This dimensionality reduction will not get a unique name"
-      write_message(message_str, log_file)
-    }
-    
     # compile all cell metadata into a single table
     metadata_tbl = seurat_obj@meta.data %>%
       rownames_to_column("cell") %>% 
@@ -684,7 +679,7 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
 create_color_vect <- function(seurat_obj, group = "orig.ident") {
   # create a vector of colors for the Idents of the s_obj
   sample_names <- switch(class(seurat_obj),
-                 Seurat = s_obj[[group]] %>% unique() %>% arrange(get(group)),
+                 Seurat = seurat_obj[[group]] %>% unique() %>% arrange(get(group)),
                  data.frame = unique(seurat_obj))
   
   colors_samples = c(brewer.pal(5, "Set1"), brewer.pal(8, "Dark2"), pal_igv("default")(51))
@@ -698,36 +693,41 @@ create_color_vect <- function(seurat_obj, group = "orig.ident") {
 plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "orig.ident") {
   # plot qc plots from seurat obj like violin and scatter plots 
   
-  s_obj <- seurat_obj
   
-  colors_samples_named <-  create_color_vect(s_obj, group = group)
+  colors_samples_named <-  create_color_vect(seurat_obj, group = group)
   
   # num genes violin
-  num_genes_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_genes), y = num_genes, fill = eval(as.name(group)))) +
+  num_genes_violin <- ggplot(seurat_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_genes), y = num_genes, fill = eval(as.name(group)))) +
     geom_violin() +
     xlab(group) +
     ylab("Number of genes per cell") +
     scale_fill_manual(values = colors_samples_named,
-                      name = group)
-  
-  num_umi_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_UMIs), y = num_UMIs, fill = eval(as.name(group)))) +
+                      name = group) + 
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+
+  num_umi_violin <- ggplot(seurat_obj@meta.data, aes(x = reorder(eval(as.name(group)), num_UMIs), y = num_UMIs, fill = eval(as.name(group)))) +
     geom_violin() +
     xlab(group) +
     ylab("Number of UMIs per cell") +
     scale_fill_manual(values = colors_samples_named,
-                      name = group)
+                      name = group) + 
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
-  pct_mito_violin <- ggplot(s_obj@meta.data, aes(x = reorder(eval(as.name(group)), pct_mito), y = pct_mito, fill = eval(as.name(group)))) +
+  pct_mito_violin <- ggplot(seurat_obj@meta.data, aes(x = reorder(eval(as.name(group)), pct_mito), y = pct_mito, fill = eval(as.name(group)))) +
     geom_violin() +
     xlab(group) +
     ylab("Percent Mitochondrial gene expression per cell") +
     scale_fill_manual(values = colors_samples_named,
                       name = group)
-
+  qc_violin_legend <- cowplot::get_legend(pct_mito_violin)
+  pct_mito_violin <- pct_mito_violin +
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+  
   qc_violin_plot = plot_grid(num_genes_violin,
                                num_umi_violin,
                                pct_mito_violin,
-                                 ncol = 3)
+                              qc_violin_legend,
+                                 ncol = 4)
 
 
   ggsave(file = glue("{out_path}/{proj_name}.{type}.qc.png"),
@@ -739,23 +739,31 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
   Sys.sleep(1)
 
 
-  UMI_gene_scatter <- ggplot(s_obj@meta.data, aes(x = num_UMIs, y = num_genes, col = eval(as.name(group)))) +
+  UMI_gene_scatter <- ggplot(seurat_obj@meta.data, aes(x = num_UMIs, y = num_genes, col = eval(as.name(group)))) +
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = max(s_obj@meta.data$num_UMI)/max(s_obj@meta.data$num_genes))
-    
-  UMI_mito_scatter <- ggplot(s_obj@meta.data, aes(x = num_UMIs, y = pct_mito, col = eval(as.name(group)))) +
-    geom_point() +
-    scale_color_manual(values = colors_samples_named, 
-                       name = group) +
-    coord_fixed(ratio = max(s_obj@meta.data$num_UMI)/max(s_obj@meta.data$pct_mito))
+    coord_fixed(ratio = max(seurat_obj@meta.data$num_UMI)/max(seurat_obj@meta.data$num_genes)) +
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
-  genes_mito_scatter <-  ggplot(s_obj@meta.data, aes(x = num_genes, y = pct_mito, col = eval(as.name(group)))) +
+  UMI_mito_scatter <- ggplot(seurat_obj@meta.data, aes(x = num_UMIs, y = pct_mito, col = eval(as.name(group)))) +
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = max(s_obj@meta.data$num_genes)/max(s_obj@meta.data$pct_mito))
+    coord_fixed(ratio = max(seurat_obj@meta.data$num_UMI)/max(seurat_obj@meta.data$pct_mito)) +
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  genes_mito_scatter <-  ggplot(seurat_obj@meta.data, aes(x = num_genes, y = pct_mito, col = eval(as.name(group)))) +
+    geom_point() +
+    scale_color_manual(values = colors_samples_named, 
+                       name = group) +
+    coord_fixed(ratio = max(seurat_obj@meta.data$num_genes)/max(seurat_obj@meta.data$pct_mito)) +
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  qc_scatter_legend <- cowplot::get_legend(genes_mito_scatter)
+  genes_mito_scatter <- genes_mito_scatter +
+    theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+  
   
   qc_scatter_plots = plot_grid(UMI_gene_scatter,
                               UMI_mito_scatter,
@@ -997,6 +1005,7 @@ run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file
   write_message(message_str, log_file)
   
   data <- switch(class(seurat_obj),
+                # from what I could see, it takes the scale.data -- no assay set?
                  Seurat = Seurat:::PrepDR(seurat_obj, features = NULL),
                  matrix = seurat_obj)
   # if(!is.null(seurat_obj)){
