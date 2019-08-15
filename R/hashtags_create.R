@@ -254,7 +254,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "UMAP.ADT1",
                Y = "UMAP.ADT2",
-               color = "orig.ident"))
+               color = "orig.ident")
 
   plot_scatter(metadata = ADT_dim_metadata,
              out_path = out_path,
@@ -262,7 +262,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
              log_file = log_file,
              X = "tSNE.ADT1",
              Y = "tSNE.ADT2",
-             color = "orig.ident"))
+             color = "orig.ident")
 
   plot_scatter(metadata = ADT_dim_metadata,
              out_path = out_path,
@@ -270,7 +270,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
              log_file = log_file,
              X = "PC.ADT1",
              Y = "PC.ADT2",
-             color = "orig.ident"))
+             color = "orig.ident")
   
   
   # log normalize data ----------
@@ -319,7 +319,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "UMAP.log1",
                  Y = "UMAP.log2",
-                 color = "orig.ident"))
+                 color = "orig.ident")
   
   plot_scatter(metadata = log_dim_metadata,
                out_path = out_path,
@@ -327,7 +327,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "tSNE.log1",
                Y = "tSNE.log2",
-               color = "orig.ident"))
+               color = "orig.ident")
   
   plot_scatter(metadata = log_dim_metadata,
                out_path = out_path,
@@ -335,7 +335,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "PC.log1",
                Y = "PC.log2",
-               color = "orig.ident"))
+               color = "orig.ident")
 
   
   saveRDS(seurat_obj_log,
@@ -368,7 +368,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "UMAP.sct1",
                  Y = "UMAP.sct2",
-                 color = "orig.ident"))
+                 color = "orig.ident")
 
     plot_scatter(metadata = sct_dim_metadata,
                  out_path = out_path,
@@ -376,7 +376,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "tSNE.sct1",
                  Y = "tSNE.sct2",
-                 color = "orig.ident"))
+                 color = "orig.ident")
     
     plot_scatter(metadata = sct_dim_metadata,
                  out_path = out_path,
@@ -384,7 +384,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "PC.sct1",
                  Y = "PC.sct2",
-                 color = "orig.ident"))
+                 color = "orig.ident")
     
     
     saveRDS(seurat_obj_sct,
