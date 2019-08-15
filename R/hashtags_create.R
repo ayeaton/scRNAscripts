@@ -635,8 +635,7 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
   message_str <- "\n\n ========== saving metadata ========== \n\n"
   write_message(message_str, log_file)
   
-  s_obj <- seurat_obj
-  
+
   if (!is.null(dim_red_list)) {
     if(is.null(dim_red_suffix)){
       message_str <- "Watch out: This dimensionality reduction will not get a unique name"
@@ -644,7 +643,7 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
     }
     
     # compile all cell metadata into a single table
-    metadata_tbl = s_obj@meta.data %>%
+    metadata_tbl = seurat_obj@meta.data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident)
@@ -672,7 +671,7 @@ save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj
     cells_metadata = cells_metadata %>%
       arrange(cell)
   } else {
-    cells_metadata = s_obj@meta.data %>%
+    cells_metadata = seurat_obj@meta.data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident) %>% 
