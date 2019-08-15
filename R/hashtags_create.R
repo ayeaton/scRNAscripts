@@ -105,7 +105,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                       slot = "counts")
   
   # save unfiltered seurat metadata
-  save_seurat_metadata(seurat_obj = seurat_obj, 
+  save_seurat_metadata(data = seurat_obj, 
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
@@ -141,7 +141,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      type = "counts.filtered")
   
   #save filtered metadata
-  save_seurat_metadata(seurat_obj = seurat_obj,
+  save_seurat_metadata(data = seurat_obj,
                        out_path = out_path,
                        log_file = log_file,
                        proj_name = proj_name, 
@@ -172,7 +172,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      slot = "data")
     
   # save metadata with HTO
-  save_seurat_metadata(seurat_obj = seurat_obj,
+  save_seurat_metadata(data = seurat_obj,
                        out_path = out_path,
                        log_file = log_file,
                        proj_name = proj_name, 
@@ -242,12 +242,31 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   
   seurat_obj_adt <-  add_dim_red_seurat(seurat_obj, ADT_dimred, dim_red_suffix = ".ADT")
   
-  ADT_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_adt,
-                       dim_red_list = ADT_dimred,
+  # merge with metadata
+  ADT_dim_metadata <- save_seurat_metadata(data = seurat_obj_adt,
+                       metadata = ADT_dimred[["pca.ADT"]],
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
-                       type = "dim.adt")
+                       type = "dim.adt",
+                       write = FALSE)
+  
+  ADT_dim_metadata <- save_seurat_metadata(data = ADT_dim_metadata,
+                                           metadata = ADT_dimred[["tSNE.ADT"]],
+                                           out_path = out_path,
+                                           proj_name = proj_name, 
+                                           log_file = log_file,
+                                           type = "dim.adt",
+                                           write= FALSE)
+  
+  ADT_dim_metadata <- save_seurat_metadata(data = ADT_dim_metadata,
+                                           metadata = ADT_dimred[["UMAP.ADT"]],
+                                           out_path = out_path,
+                                           proj_name = proj_name, 
+                                           log_file = log_file,
+                                           type = "dim.adt",
+                                           write = TRUE)
+  
   
   plot_scatter(metadata = ADT_dim_metadata,
                out_path = out_path,
@@ -299,19 +318,29 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred, dim_red_suffix = ".log")
   
   #save dim red in metadata 
-  log_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_log,
-                       dim_red_list = seurat_log_dimred,
+  log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
+                                           metadata = seurat_log_dimred[["pca.log"]],
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
-                       type = "dim.log")
+                       type = "dim.log",
+                       write = FALSE)
   
-  log_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_log,
-                                           dim_red_list = seurat_log_dimred,
+  log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
+                                           metadata = seurat_log_dimred[["tSNE.log"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
                                            log_file = log_file,
-                                           type = "dim.adt")
+                                           type = "dim.log",
+                                           write = FALSE)
+  
+  log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
+                                           metadata = seurat_log_dimred[["UMAP.log"]],
+                                           out_path = out_path,
+                                           proj_name = proj_name, 
+                                           log_file = log_file,
+                                           type = "dim.log",
+                                           write = TRUE)
   
   plot_scatter(metadata = log_dim_metadata,
                  out_path = out_path,
@@ -354,12 +383,28 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     
     
     #save dim red in metadata 
-    sct_dim_metadata <- save_seurat_metadata(seurat_obj = seurat_obj_sct,
-                           dim_red_list = seurat_sct_dimred,
+    sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
+                           metadata = seurat_sct_dimred[["pca.sct"]],
                            out_path = out_path,
                            proj_name = proj_name, 
                            log_file = log_file,
-                           type = "dim.sct")
+                           type = "dim.sct",
+                           write = FALSE)
+    sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
+                                             metadata = seurat_sct_dimred[["tSNE.sct"]],
+                                             out_path = out_path,
+                                             proj_name = proj_name, 
+                                             log_file = log_file,
+                                             type = "dim.sct",
+                                             write = FALSE)
+    
+    sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
+                                             metadata = seurat_sct_dimred[["UMAP.sct"]],
+                                             out_path = out_path,
+                                             proj_name = proj_name, 
+                                             log_file = log_file,
+                                             type = "dim.sct",
+                                             write = TRUE)
     
     
     plot_scatter(metadata = sct_dim_metadata,
@@ -629,50 +674,51 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, 
   rm(counts)
 }
 
-save_seurat_metadata <- function(seurat_obj, dim_red_list = NULL, out_path, proj_name, type, log_file) {
+save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, type, log_file, write = TRUE) {
   # save metadata from seurat object 
   
   message_str <- "\n\n ========== saving metadata ========== \n\n"
   write_message(message_str, log_file)
   
-
-  if (!is.null(dim_red_list)) {
+  data <- switch(class(data),
+                 # from what I could see, it takes the scale.data -- no assay set?
+                 Seurat = data@meta.data,
+                 data.frame = data)
+  
+  if (!is.null(metadata)) {
     # compile all cell metadata into a single table
-    metadata_tbl = seurat_obj@meta.data %>%
+    metadata_seurat = data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident)
     
-    umap <- dim_red_list[[grep("^umap", names(dim_red_list))]] %>% 
+    metadata_tbl <- metadata %>% 
       as.data.frame() %>% 
       rownames_to_column("cell") %>% 
       as_tibble() 
     
-    tsne <- dim_red_list[[grep("^tsne", names(dim_red_list))]] %>% 
-      as.data.frame() %>% 
-      rownames_to_column("cell") %>% 
-      as_tibble() 
-    
-    pca <- dim_red_list[[grep("^cell.embeddings", names(dim_red_list))]] %>% 
-      as.data.frame() %>% 
-      rownames_to_column("cell") %>% 
-      as_tibble() 
-    
-    cells_metadata = metadata_tbl %>%
-      full_join(umap ,by = "cell") %>% 
-      full_join(tsne, by = "cell") %>% 
-      full_join(pca, by = "cell")
+    cells_metadata = metadata_seurat %>%
+      full_join(metadata_tbl ,by = "cell") 
 
     cells_metadata = cells_metadata %>%
-      arrange(cell)
+      arrange(cell) %>% 
+      as.data.frame() %>% 
+      column_to_rownames("cell")
+    
   } else {
-    cells_metadata = seurat_obj@meta.data %>%
+    cells_metadata = data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident) %>% 
-      arrange(cell)
+      arrange(cell) %>% 
+      as.data.frame() %>% 
+      column_to_rownames("cell")
   }
-  write_excel_csv(cells_metadata, path = glue("{out_path}/{proj_name}.{type}.metadata.csv"))
+  
+  if(write){
+    write_excel_csv(cells_metadata, path = glue("{out_path}/{proj_name}.{type}.metadata.csv"))
+  }
+  
   return(cells_metadata)
 }
 
