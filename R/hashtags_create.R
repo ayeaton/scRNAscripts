@@ -235,8 +235,11 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      slot = "data")
   
   # cluster based on ADTs ----------
-  ADT_data <- seurat_obj@assayRADT@data
-  seurat_log_dimred <- run_dimensionality_reduction(NULL, 5, 5, "test", matrix = test)
+  ADT_data <- seurat_obj@assays$ADT@data
+  
+  ADT_dimred <- run_dimensionality_reduction(ADT_data,num_pcs, num_dim, log_file, dim_red_suffix = ".ADT_")
+  
+  seurat_obj_adt <-  add_dim_red_seurat(seurat_obj, ADT_dimred, dim_red_suffix = ".ADT_")
   
     
   # normalize data -----------------
@@ -260,10 +263,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                    log_file = log_file)
   
   # run PCA, TSNE and UMAP
-  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, matrix = NULL)
+  seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_pcs, num_dim, log_file, dim_red_suffix = ".log_")
   
   # add dim red to seurat object 
-  seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred)
+  seurat_obj_log <-  add_dim_red_seurat(seurat_obj_log, seurat_log_dimred, dim_red_suffix = ".log_")
   
   
   #save dim red in metadata 
@@ -280,10 +283,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     seurat_obj_sct <- sctransform_data(seurat_obj, out_path = out_path, log_file = log_file, proj_name = proj_name)
     
     # run PCA, TSNE and UMAP
-    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_pcs, num_dim, log_file)
+    seurat_sct_dimred <- run_dimensionality_reduction(seurat_obj_sct, num_pcs, num_dim, log_file, dim_red_suffix = ".sct_")
     
     # add dim red to seurat object 
-    seurat_obj_sct <-  add_dim_red_seurat(seurat_obj_sct, seurat_sct_dimred)
+    seurat_obj_sct <-  add_dim_red_seurat(seurat_obj_sct, seurat_sct_dimred, dim_red_suffix = ".sct_")
     
     
     #save dim red in metadata 
@@ -310,13 +313,10 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                 log_file = log_file,
                                 assay = "RNA",
                                 num_pcs = num_dim)
-  
-
 
   saveRDS(seurat_obj_dim,
           file = glue("{proj_name}.seurat_obj.rds"))
 }
-
 
 write_message <- function(message_str, log_file) {
   # Small function to write to message and to log file
@@ -911,7 +911,7 @@ sctransform_data <- function(seurat_obj, out_path, log_file, proj_name){
 
 }
 
-run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file, dim_red_suffix = NULL, matrix = NULL){
+run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file, dim_red_suffix = NULL){
   # taken from seurat 
   # I didnt 100% understand the Seurat code so I took the parts I needed and made it so that
   # I could calculate dim red on a matrix as well 
@@ -919,17 +919,18 @@ run_dimensionality_reduction <- function(seurat_obj,  num_pcs, num_dim, log_file
   message_str <- "\n\n ========== dimensionality reduction ========== \n\n"
   write_message(message_str, log_file)
   
-  if(!is.null(seurat_obj)){
-    data <- Seurat:::PrepDR(object = seurat_obj,
-           features = NULL,
-           verbose = TRUE)
-  } else if(!is.null(matrix)){
-    data <- matrix
-  } else {
-    message_str <- "ERROR: either input a seurat object or a matrix"
-    write_message(message_str, log_file)
-    data = NULL
-  }
+  data <- switch(class(seurat_obj),
+                 Seurat = Seurat:::PrepDR(seurat_obj, features = NULL),
+                 matrix = seurat_obj)
+  # if(!is.null(seurat_obj)){
+  #   data <- Seurat:::PrepDR(object = seurat_obj,
+  #          features = NULL,
+  #          verbose = TRUE)
+  # } else if(!is.null(matrix)){
+  #   data <- matrix
+  # } else {
+  #   stop("ERROR: either input a seurat object or a matrix")
+  # }
   
   # suffix is _ if not specified
   dim_red_suffix <- ifelse(is.null(dim_red_suffix), "_", dim_red_suffix)
@@ -1039,18 +1040,33 @@ run_umap <- function(object, seed.use = 42L, n.neighbors = 30L, n.components = 2
 }
 
 add_dim_red_seurat <- function(seurat_obj, dim_red_list, dim_red_suffix = NULL){
+  # from seurat - removed bloat and warnings and changing my key for annoying reasons
   
-  pca.reduction <- CreateDimReducObject(embeddings = dim_red_list$cell.embeddings, loadings = dim_red_list$feature.loadings, 
-                                        assay = NULL, stdev = dim_red_list$sdev, key = reduction.key,
-                                        misc = list(total.variance = sum(dim_red_list$sdev)))
-  tsne.reduction <- CreateDimReducObject(embeddings = dim_red_list$tsne_out, key = reduction.key, assay = NULL)
-  umap.reduction <- CreateDimReducObject(embeddings = dim_red_list$umap_out, key = reduction.key, assay = NULL)
+  ## Turns out you cant add the PC names the way I wanted to anyways so 
+  
+  pca.dim.reduc <- new(Class = "DimReduc", 
+                   cell.embeddings =  as.matrix(dim_red_list$cell.embeddings), 
+                   feature.loadings = as.matrix(dim_red_list$feature.loadings), 
+                   assay.used = "RNA", 
+                   stdev = dim_red_list$sdev, 
+                   key = paste0("PC", dim_red_suffix))
+  
+  tsne.dim.reduc <- new(Class = "DimReduc", 
+                       cell.embeddings =  as.matrix(dim_red_list$tsne_out), 
+                       assay.used = "RNA", 
+                       key = paste0("tSNE", dim_red_suffix))
+  
+  umap.dim.reduc <- new(Class = "DimReduc", 
+                        cell.embeddings =  as.matrix(dim_red_list$umap_out), 
+                        assay.used = "RNA", 
+                        key = paste0("UMAP", dim_red_suffix))
+
   
   dim_red_suffix <- ifelse(is.null(dim_red_suffix), "", dim_red_suffix)
   
-  seurat_obj[[paste("pca", dim_red_suffix, sep = "")]] <- pca.reduction
-  seurat_obj[[paste("tsne", dim_red_suffix, sep = "")]] <- tsne.reduction
-  seurat_obj[[paste("umap", dim_red_suffix, sep = "")]] <- umap.reduction
+  seurat_obj[[paste("pca", dim_red_suffix, sep = "")]] <- pca.dim.reduc
+  seurat_obj[[paste("tsne", dim_red_suffix, sep = "")]] <- tsne.dim.reduc
+  seurat_obj[[paste("umap", dim_red_suffix, sep = "")]] <- umap.dim.reduc
   
   return(seurat_obj)
 }
@@ -1347,7 +1363,6 @@ seurat_plot_hto <- function(seurat_obj, out_path, proj_name) {
          width =7 ,
          units = "in")
 }
-
 
 create_seurat_obj_adt <- function(seurat_obj, out_dir, ADT_counts, proj_name, log_file) {
   # add ADT slot to an existing seurat object
