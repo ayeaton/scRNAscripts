@@ -688,7 +688,6 @@ save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, typ
   if (!is.null(metadata)) {
     # compile all cell metadata into a single table
     metadata_seurat = data %>%
-      rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident)
     
@@ -701,18 +700,14 @@ save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, typ
       full_join(metadata_tbl ,by = "cell") 
 
     cells_metadata = cells_metadata %>%
-      arrange(cell) %>% 
-      as.data.frame() %>% 
-      column_to_rownames("cell")
-    
+      arrange(cell) 
+
   } else {
     cells_metadata = data %>%
       rownames_to_column("cell") %>% 
       as_tibble() %>%
       mutate(sample_name = orig.ident) %>% 
-      arrange(cell) %>% 
-      as.data.frame() %>% 
-      column_to_rownames("cell")
+      arrange(cell) 
   }
   
   if(write){
