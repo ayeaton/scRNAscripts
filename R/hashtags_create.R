@@ -786,21 +786,21 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = max(seurat_obj@meta.data$num_UMI)/max(seurat_obj@meta.data$num_genes)) +
+    coord_fixed(ratio = (max(seurat_obj@meta.data$num_UMI) - min(seurat_obj@meta.data$num_UMI)) /(max(seurat_obj@meta.data$num_genes) - min(seurat_obj@meta.data$num_genes)) +
     theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
   UMI_mito_scatter <- ggplot(seurat_obj@meta.data, aes(x = num_UMIs, y = pct_mito, col = eval(as.name(group)))) +
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = max(seurat_obj@meta.data$num_UMI)/max(seurat_obj@meta.data$pct_mito)) +
+    coord_fixed(ratio = (max(seurat_obj@meta.data$num_UMI) - min(seurat_obj@meta.data$num_UMI))/(max(seurat_obj@meta.data$pct_mito) - min(seurat_obj@meta.data$pct_mito))) +
     theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
   genes_mito_scatter <-  ggplot(seurat_obj@meta.data, aes(x = num_genes, y = pct_mito, col = eval(as.name(group)))) +
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = max(seurat_obj@meta.data$num_genes)/max(seurat_obj@meta.data$pct_mito)) +
+    coord_fixed(ratio = (max(seurat_obj@meta.data$num_genes) - min(seurat_obj@meta.data$num_genes))/(max(seurat_obj@meta.data$pct_mito) - min(seurat_obj@meta.data$pct_mito))) +
     theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
   qc_scatter_legend <- cowplot::get_legend(genes_mito_scatter)
@@ -1206,7 +1206,7 @@ plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color){
   
   current_plot <- ggplot(metadata, aes(x = eval(as.name(X)), y = eval(as.name(Y)), color = eval(as.name(color)))) +
     geom_point() +
-    coord_fixed(ratio = max(metadata[X])/max(metadata[Y])) +
+    coord_fixed(ratio = (max(metadata[X]) - min(metadata[X]))/(max(metadata[Y]) - min(metadata[Y]))) +
     xlab(X) + 
     ylab(Y) +
     scale_color_manual(values = colors_samples_named, 
