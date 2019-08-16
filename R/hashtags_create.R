@@ -786,7 +786,7 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
     geom_point() +
     scale_color_manual(values = colors_samples_named, 
                        name = group) +
-    coord_fixed(ratio = (max(seurat_obj@meta.data$num_UMI) - min(seurat_obj@meta.data$num_UMI)) /(max(seurat_obj@meta.data$num_genes) - min(seurat_obj@meta.data$num_genes)) +
+    coord_fixed(ratio = (max(seurat_obj@meta.data$num_UMI) - min(seurat_obj@meta.data$num_UMI)) /(max(seurat_obj@meta.data$num_genes) - min(seurat_obj@meta.data$num_genes))) +
     theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
   
   UMI_mito_scatter <- ggplot(seurat_obj@meta.data, aes(x = num_UMIs, y = pct_mito, col = eval(as.name(group)))) +
