@@ -326,7 +326,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                        type = "dim.log",
                        write = FALSE)
   
-  log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
+  log_dim_metadata <- save_seurat_metadata(data = log_dim_metadata,
                                            metadata = seurat_log_dimred[["tsne_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
@@ -334,7 +334,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                            type = "dim.log",
                                            write = FALSE)
   
-  log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
+  log_dim_metadata <- save_seurat_metadata(data = log_dim_metadata,
                                            metadata = seurat_log_dimred[["umap_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
@@ -390,7 +390,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                            log_file = log_file,
                            type = "dim.sct",
                            write = FALSE)
-    sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
+    sct_dim_metadata <- save_seurat_metadata(data = sct_dim_metadata,
                                              metadata = seurat_sct_dimred[["tsne_out"]],
                                              out_path = out_path,
                                              proj_name = proj_name, 
@@ -398,7 +398,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                              type = "dim.sct",
                                              write = FALSE)
     
-    sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
+    sct_dim_metadata <- save_seurat_metadata(data = sct_dim_metadata,
                                              metadata = seurat_sct_dimred[["umap_out"]],
                                              out_path = out_path,
                                              proj_name = proj_name, 
@@ -681,33 +681,35 @@ save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, typ
   write_message(message_str, log_file)
   
   data <- switch(class(data),
-                 # from what I could see, it takes the scale.data -- no assay set?
                  Seurat = data@meta.data,
                  data.frame = data)
   
-  if (!is.null(metadata)) {
-    # compile all cell metadata into a single table
-    metadata_seurat = data %>%
-      as_tibble() %>%
-      mutate(sample_name = orig.ident)
-    
-    metadata_tbl <- metadata %>% 
-      as.data.frame() %>% 
-      rownames_to_column("cell") %>% 
-      as_tibble() 
-    
-    cells_metadata = metadata_seurat %>%
-      full_join(metadata_tbl ,by = "cell") 
+   # check that there is a cell column, if not, make the rownames the cell column       
+   if(sum(grepl("^cell$", colnames(data)))){
+     data = data %>%  as.tibble() %>% mutate(sample_name = orig.ident)
 
-    cells_metadata = cells_metadata %>%
-      arrange(cell) 
+   } else {
+     data = data %>% as.data.frame %>% rownames_to_column("cell") %>%  as.tibble()
+   }
+  
+  if (!is.null(metadata)) {
+    # check that there is a cell column, if not, make the rownames the cell column       
+    if(sum(grepl("^cell$", colnames(metadata)))){
+      metadata = metadata %>%  as.tibble()
+    } else {
+      metadata = metadata %>% as.data.frame %>% rownames_to_column("cell") %>%  as.tibble()
+    }
+    
+    # compile all cell metadata into a single table
+    cells_metadata = data %>%
+      full_join(metadata,by = "cell") %>% 
+      arrange(cell) %>% 
+      as.data.frame()
 
   } else {
     cells_metadata = data %>%
-      rownames_to_column("cell") %>% 
-      as_tibble() %>%
-      mutate(sample_name = orig.ident) %>% 
-      arrange(cell) 
+      arrange(cell) %>% 
+      as.data.frame()
   }
   
   if(write){
