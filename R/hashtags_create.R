@@ -244,7 +244,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   
   # merge with metadata
   ADT_dim_metadata <- save_seurat_metadata(data = seurat_obj_adt,
-                       metadata = ADT_dimred[["pca.ADT"]],
+                       metadata = ADT_dimred[["cell.embeddings"]],
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
@@ -252,7 +252,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                        write = FALSE)
   
   ADT_dim_metadata <- save_seurat_metadata(data = ADT_dim_metadata,
-                                           metadata = ADT_dimred[["tSNE.ADT"]],
+                                           metadata = ADT_dimred[["tsne_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
                                            log_file = log_file,
@@ -260,7 +260,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                            write= FALSE)
   
   ADT_dim_metadata <- save_seurat_metadata(data = ADT_dim_metadata,
-                                           metadata = ADT_dimred[["UMAP.ADT"]],
+                                           metadata = ADT_dimred[["umap_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
                                            log_file = log_file,
@@ -319,7 +319,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
   
   #save dim red in metadata 
   log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
-                                           metadata = seurat_log_dimred[["pca.log"]],
+                                           metadata = seurat_log_dimred[["cell.embeddings"]],
                        out_path = out_path,
                        proj_name = proj_name, 
                        log_file = log_file,
@@ -327,7 +327,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                        write = FALSE)
   
   log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
-                                           metadata = seurat_log_dimred[["tSNE.log"]],
+                                           metadata = seurat_log_dimred[["tsne_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
                                            log_file = log_file,
@@ -335,7 +335,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                            write = FALSE)
   
   log_dim_metadata <- save_seurat_metadata(data = seurat_obj_log,
-                                           metadata = seurat_log_dimred[["UMAP.log"]],
+                                           metadata = seurat_log_dimred[["umap_out"]],
                                            out_path = out_path,
                                            proj_name = proj_name, 
                                            log_file = log_file,
@@ -384,14 +384,14 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
     
     #save dim red in metadata 
     sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
-                           metadata = seurat_sct_dimred[["pca.sct"]],
+                           metadata = seurat_sct_dimred[["cell.embeddings"]],
                            out_path = out_path,
                            proj_name = proj_name, 
                            log_file = log_file,
                            type = "dim.sct",
                            write = FALSE)
     sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
-                                             metadata = seurat_sct_dimred[["tSNE.sct"]],
+                                             metadata = seurat_sct_dimred[["tsne_out"]],
                                              out_path = out_path,
                                              proj_name = proj_name, 
                                              log_file = log_file,
@@ -399,7 +399,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                                              write = FALSE)
     
     sct_dim_metadata <- save_seurat_metadata(data = seurat_obj_sct,
-                                             metadata = seurat_sct_dimred[["UMAP.sct"]],
+                                             metadata = seurat_sct_dimred[["umap_out"]],
                                              out_path = out_path,
                                              proj_name = proj_name, 
                                              log_file = log_file,

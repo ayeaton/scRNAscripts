@@ -53,7 +53,8 @@ plot_scatter()
 
 data <- genes as rownames
 
-list_groups <- list(c("hash5-sample-3762", "hash7-sample-0310"))
+list_groups <- list(c("hash5-sample-3762", "hash7-sample-0310"),
+                    c("hash1-sample-0160","hash3-sample-3133"))
 
 diff_exp <- function(data, metadata, metadata_column, list_groups, test.use = "wilcox"){
   
@@ -87,7 +88,16 @@ diff_exp <- function(data, metadata, metadata_column, list_groups, test.use = "w
      test.use = test.use,
      min.pct =  0)
    
+   current_comparison_filt <- current_comparison %>% 
+     select(p_val, avg_logFC, p_val_adj) %>% 
+     filter(avg_logFC > 1 | avg_logFC < -1) %>%   
+     filter(p_val_adj < 0.1) %>% 
+     mutate(group_1 = rep(current_group[1])) %>% 
+     mutate(group_2 = rep(current_group[2]))
+  
+   diff_exp_stats <- rbind(diff_exp_stats, current_comparison_filt)
   }
+  return(diff_exp_stats)
 }
 
 
