@@ -2,6 +2,8 @@
 # create s obj with and without use of hashtags
 
 # TODO: remove libraries 
+# TODO: separate and clean code into two files, and wrapper functions
+
 suppressPackageStartupMessages({
   library(magrittr)
   library(glue)
@@ -274,7 +276,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "UMAP.ADT1",
                Y = "UMAP.ADT2",
-               color = "orig.ident")
+               color = "orig.ident",
+               write = TRUE)
 
   plot_scatter(metadata = ADT_dim_metadata,
              out_path = out_path,
@@ -282,7 +285,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
              log_file = log_file,
              X = "tSNE.ADT1",
              Y = "tSNE.ADT2",
-             color = "orig.ident")
+             color = "orig.ident",
+             write = TRUE)
 
   plot_scatter(metadata = ADT_dim_metadata,
              out_path = out_path,
@@ -290,7 +294,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
              log_file = log_file,
              X = "PC.ADT1",
              Y = "PC.ADT2",
-             color = "orig.ident")
+             color = "orig.ident", 
+             write = TRUE)
   
   
   # log normalize data ----------
@@ -348,7 +353,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "UMAP.log1",
                  Y = "UMAP.log2",
-                 color = "orig.ident")
+                 color = "orig.ident",
+                 write = TRUE)
   
   plot_scatter(metadata = log_dim_metadata,
                out_path = out_path,
@@ -356,7 +362,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "tSNE.log1",
                Y = "tSNE.log2",
-               color = "orig.ident")
+               color = "orig.ident",
+               write = TRUE)
   
   plot_scatter(metadata = log_dim_metadata,
                out_path = out_path,
@@ -364,7 +371,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                log_file = log_file,
                X = "PC.log1",
                Y = "PC.log2",
-               color = "orig.ident")
+               color = "orig.ident",
+               write = TRUE)
 
   
   saveRDS(seurat_obj_log,
@@ -390,6 +398,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                            log_file = log_file,
                            type = "dim.sct",
                            write = FALSE)
+    
     sct_dim_metadata <- save_seurat_metadata(data = sct_dim_metadata,
                                              metadata = seurat_sct_dimred[["tsne_out"]],
                                              out_path = out_path,
@@ -413,7 +422,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "UMAP.sct1",
                  Y = "UMAP.sct2",
-                 color = "orig.ident")
+                 color = "orig.ident",
+                 write = TRUE)
 
     plot_scatter(metadata = sct_dim_metadata,
                  out_path = out_path,
@@ -421,7 +431,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "tSNE.sct1",
                  Y = "tSNE.sct2",
-                 color = "orig.ident")
+                 color = "orig.ident",
+                 write = TRUE)
     
     plot_scatter(metadata = sct_dim_metadata,
                  out_path = out_path,
@@ -429,7 +440,8 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                  log_file = log_file,
                  X = "PC.sct1",
                  Y = "PC.sct2",
-                 color = "orig.ident")
+                 color = "orig.ident",
+                 write = TRUE)
     
     
     saveRDS(seurat_obj_sct,
@@ -448,7 +460,7 @@ write_message <- function(message_str, log_file) {
 
 load_sample_counts_matrix = function(sample_names, data_path, log_file) {
   # Reads in count data from 10x from one path or multiple paths
-  #
+  # FROM IGOR DOLGALEV
   # Args:
   #   sample_names: Names to set each sample
   #   data_path: Paths to each sample /data_path/outs
@@ -546,10 +558,9 @@ load_sample_counts_matrix = function(sample_names, data_path, log_file) {
   return(merged_counts_matrix)
 
 }
-
 create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggregated = NULL) {
   # convert a sparse matrix of counts to a Seurat object and generate some QC plots
-  # 
+  # FROM IGOR DOLGALEV
   # Args:
   #   counts_matrix: Sparse matrix of gene counts 
   #   out_path: Output directory
@@ -647,11 +658,8 @@ create_seurat_obj <- function(counts_matrix, out_path, proj_name, log_file, aggr
 
   return(s_obj)
 }
-
 save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, assay = "RNA", slot = "data") {
   # save counts matrix as a csv file (to be consistent with the rest of the tables)
-  
-  s_obj <- seurat_obj
   
   message_str <- "\n\n ========== saving counts ========== \n\n"
   write_message(message_str, log_file)
@@ -659,7 +667,7 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, 
   # save counts matrix as a basic gzipped text file
   # object@data stores normalized and log-transformed single cell expression
   # used for visualizations, such as violin and feature plots, most diff exp tests, finding high-variance genes
-  counts = GetAssayData(s_obj, assay = assay) %>%
+  counts = GetAssayData(seurat_obj, assay = assay) %>%
     as.matrix() %>%
     round(3)
   
@@ -673,7 +681,6 @@ save_counts_matrix <- function(seurat_obj, out_path, proj_name, type, log_file, 
   
   rm(counts)
 }
-
 save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, type, log_file, write = TRUE) {
   # save metadata from seurat object 
   
@@ -686,7 +693,7 @@ save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, typ
   
    # check that there is a cell column, if not, make the rownames the cell column       
    if(sum(grepl("^cell$", colnames(data)))){
-     data = data %>%  as.tibble() %>% mutate(sample_name = orig.ident)
+     data = data %>%  as.tibble() 
 
    } else {
      data = data %>% as.data.frame %>% rownames_to_column("cell") %>%  as.tibble()
@@ -1200,7 +1207,7 @@ add_dim_red_seurat <- function(seurat_obj, dim_red_list, dim_red_suffix = NULL){
   return(seurat_obj)
 }
 
-plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color){
+plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color, write = FALSE){
   
   colors_samples_named <- create_color_vect(as.data.frame(metadata[color]))
   
@@ -1212,12 +1219,15 @@ plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color){
     scale_color_manual(values = colors_samples_named, 
                        name = color)
 
+  if(write){
+    ggsave(glue("{out_path}/{proj_name}.{X}.{Y}.{color}.png"),
+           plot = current_plot,
+           width = 8,
+           height = 6,
+           units = "in")
+  }
   
-  ggsave(glue("{out_path}/{proj_name}.{X}.{Y}.{color}.png"),
-         plot = current_plot,
-         width = 8,
-         height = 6,
-         units = "in")
+  return(current_plot)
 }
 
 
@@ -1253,8 +1263,9 @@ create_seurat_obj_hto <- function(seurat_obj, out_dir, HTO_counts, proj_name, lo
   # check if the cells in the data are the same as the cells in the hashtag data
   cells_to_use <- intersect(colnames(seurat_obj), colnames(HTO_counts))
 
+  # TODO: print out the number of cells lost
   if(length(s_obj) != length(cells_to_use)){
-    message_str <- "some cells in scrna matrix not in hto matrix"
+    message_str <- "some cells in scrna matrix not in hto matrix."
     write_message(message_str, log_file)
   }
   if(ncol(HTO_counts) != length(cells_to_use)){
