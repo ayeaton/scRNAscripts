@@ -11,10 +11,8 @@ library(matrixStats)
 # scoring plots
 
 # heatmap of scores
-plot_scores_heatmap(mod_score_out)
 
 #heatmap of each gene in module list
-plot_genes_module(mod_score_out, data, module_tbl)
 
 
 plot_genes_module <- function(module_scores, data, module_tbl, id = ""){
