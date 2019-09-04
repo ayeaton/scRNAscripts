@@ -310,11 +310,7 @@ assemble_seurat_obj_hto <- function(data_path, # path to 10x data /data_path/out
                      log_file = log_file,
                      type = "log.norm")
   
-  # calculate variance and plot 
-  seurat_obj_log <- calculate_variance(seurat_obj = seurat_obj_log,
-                                   out_path = out_path,
-                                   proj_name = proj_name,
-                                   log_file = log_file)
+
   
   # run PCA, TSNE and UMAP
   seurat_log_dimred <- run_dimensionality_reduction(seurat_obj_log, num_dim, num_dim, log_file, dim_red_suffix = ".log")
@@ -725,7 +721,6 @@ save_seurat_metadata <- function(data, metadata = NULL, out_path, proj_name, typ
   
   return(cells_metadata)
 }
-
 create_color_vect <- function(seurat_obj, group = "orig.ident") {
   # create a vector of colors for the Idents of the s_obj
   sample_names <- switch(class(seurat_obj),
@@ -739,7 +734,6 @@ create_color_vect <- function(seurat_obj, group = "orig.ident") {
   names(colors_samples_named) = sample_names[,1]
   return(colors_samples_named)
 }
-
 plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "orig.ident") {
   # plot qc plots from seurat obj like violin and scatter plots 
   
@@ -829,7 +823,6 @@ plot_qc_seurat <- function(seurat_obj, out_dir, proj_name, type = "_", group = "
 
   Sys.sleep(1)
 }
-
 get_dr_point_size <- function(seurat_obj) {
   # get point size for dim red plots
   
@@ -1207,17 +1200,22 @@ add_dim_red_seurat <- function(seurat_obj, dim_red_list, dim_red_suffix = NULL){
   return(seurat_obj)
 }
 
-plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color, write = FALSE){
+plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color, write = FALSE, color_vect = NULL){
   
-  colors_samples_named <- create_color_vect(as.data.frame(metadata[color]))
+  if(is.null(color_vect)){
+   colors_samples_named <- create_color_vect(as.data.frame(metadata[color]))
+  } else {
+    colors_samples_named <- color_vect
+  }
+    
   
-  current_plot <- ggplot(metadata, aes(x = eval(as.name(X)), y = eval(as.name(Y)), color = eval(as.name(color)))) +
-    geom_point() +
+  current_plot <- ggplot(sample_frac(metadata), aes(x = eval(as.name(X)), y = eval(as.name(Y)), color = eval(as.name(color)))) +
+    geom_point(size = 1, alpha = 0.5) +
     coord_fixed(ratio = (max(metadata[X]) - min(metadata[X]))/(max(metadata[Y]) - min(metadata[Y]))) +
     xlab(X) + 
     ylab(Y) +
     scale_color_manual(values = colors_samples_named, 
-                       name = color)
+                       name = color) 
 
   if(write){
     ggsave(glue("{out_path}/{proj_name}.{X}.{Y}.{color}.png"),
@@ -1229,7 +1227,6 @@ plot_scatter<- function(metadata, out_path, proj_name, log_file, X, Y, color, wr
   
   return(current_plot)
 }
-
 
 read_remove.unmapped <- function(HTO_file) {
   # remove unmapped row
@@ -1262,7 +1259,7 @@ create_seurat_obj_hto <- function(seurat_obj, out_dir, HTO_counts, proj_name, lo
 
   # check if the cells in the data are the same as the cells in the hashtag data
   cells_to_use <- intersect(colnames(seurat_obj), colnames(HTO_counts))
-
+  print(cells_to_use)
   # TODO: print out the number of cells lost
   if(length(s_obj) != length(cells_to_use)){
     message_str <- "some cells in scrna matrix not in hto matrix."

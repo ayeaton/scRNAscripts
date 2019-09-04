@@ -1,5 +1,6 @@
 
 # module scores 
+library(matrixStats)
 
 # scoring methods are from Igor and Teo
 
@@ -9,6 +10,105 @@
 
 # scoring plots
 
+# heatmap of scores
+plot_scores_heatmap(mod_score_out)
+
+#heatmap of each gene in module list
+plot_genes_module(mod_score_out, data, module_tbl)
+
+
+plot_genes_module <- function(module_scores, data, module_tbl, id = ""){
+  
+  #iterate through celltypes
+  for(i in 1:length(unique(module_tbl$celltype))){
+    current_celltype <- unique(module_tbl$celltype)[i]
+    # get genes in that celltype   grepl(paste0("^", current_celltype), module_tbl$celltype)
+    #current_genes <- module_tbl$gene[which(module_tbl$celltype %in% current_celltype)]
+    current_genes <- module_tbl$gene[grepl(paste0("^", current_celltype), module_tbl$celltype)] 
+    # get counts
+    current_data <- as.matrix(data[which(rownames(data) %in% current_genes),])
+    # get scores as dataframe
+    module_scores_annotation <- as.data.frame(do.call(cbind,lapply(module_scores, function(x){
+      position_of_celltype <- grepl(paste0("^", current_celltype), colnames(x))
+      out <- x %>% 
+        rownames_to_column('cluster') %>% 
+        select("cluster", colnames(x)[position_of_celltype]) %>% 
+        column_to_rownames('cluster')
+    })))
+    #colnames(module_scores_annotation) <- make.names(colnames(module_scores_annotation), unique = TRUE)
+    
+    if(nrow(current_data) == 1){next}
+    
+    sd_cols <- apply(current_data, 2, sd)
+    if(length(which(sd_cols == 0)) != 0){
+      current_data <- current_data[, -which(sd_cols == 0)]
+    }
+    sd_rows <- apply(current_data, 1, sd)
+    if(length(which(sd_rows == 0)) != 0){
+      current_data <- current_data[-which(sd_rows == 0),]
+    }
+    
+    # generate the heatmap
+    
+    png(glue("{id}.{current_celltype}.genes.heatmap.png"), width = 10, height = 10, units = "in", res = 300)
+    pheatmap(
+      current_data, scale = "row", annotation_col= module_scores_annotation, 
+      fontsize = 10, fontsize_row = 8, fontsize_col = 12, show_colnames = TRUE)
+    dev.off()
+    Sys.sleep(1)
+  }
+  # and one all together
+  current_data <- as.matrix(data[which(rownames(data) %in% module_tbl$gene),])
+  sd_cols <- apply(current_data, 2, sd)
+  if(length(which(sd_cols == 0)) != 0){
+    current_data <- current_data[, -which(sd_cols == 0)]
+  }
+  sd_rows <- apply(current_data, 1, sd)
+  if(length(which(sd_rows == 0)) != 0){
+    current_data <- current_data[-which(sd_rows == 0),]
+  }
+  module_scores_annotation <- as.data.frame(do.call(cbind,lapply(module_scores, function(x){
+    position_of_celltype <- grepl(paste0("^", current_celltype), colnames(x))
+    out <- x %>% 
+      rownames_to_column('cluster') %>% 
+      select("cluster", ends_with("module")) %>% 
+      column_to_rownames('cluster')
+  })))
+  colnames(module_scores_annotation) <- make.names(colnames(module_scores_annotation), unique = TRUE)
+  # generate the heatmap
+  png(glue("{id}.all.genes.heatmap.png"), width = 30, height = 30, units = "in", res = 300)
+  pheatmap(
+    current_data, scale = "row", annotation_col= module_scores_annotation, 
+    fontsize = 10, fontsize_row = 8, fontsize_col = 12, show_colnames = TRUE)
+  dev.off()
+  Sys.sleep(1)
+}
+
+plot_scores_heatmap <- function(module_scores, id = ""){
+  
+  for(i in 1:length(module_scores)){
+    
+    current_mod <- module_scores[[i]]
+    
+    main <- current_mod %>% 
+      select(ends_with("score")) %>% 
+      as.matrix()
+    
+    label <- current_mod %>% 
+      select(ends_with("module")) %>% 
+      rename(!!names(module_scores)[i] := ends_with("module")) %>% 
+      as.data.frame()
+    
+    # generate the heatmap
+    
+    png(glue("{names(module_scores)[i]}.{id}.score.heatmap.png"), width = 10, height = 10, units = "in", res = 300)
+    pheatmap(
+      main, scale = "none", annotation_row = label, 
+      fontsize = 10, fontsize_row = 8, fontsize_col = 12, show_colnames = TRUE)
+    dev.off()
+    Sys.sleep(1)
+  }
+}
 
 module_score <- function(module_tbl, counts_norm = NULL, counts_raw = NULL, 
                          method = c("iscore", "sscore","zscore","rsscore")) {
@@ -160,7 +260,7 @@ filter_mat_by_cpm = function(counts_raw, min_cpm = 0) {
   # filter matrix by a specified CPM value (higher in at least one sample/column for each gene/row)
   
   if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
-  if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
+  #if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
   if (nrow(counts_raw) < 10000) { stop("expression matrix has too few genes") }
   
   # expression level equivalent to 1 CPM (1 for 1m, 0.01 for 10k)
@@ -182,7 +282,7 @@ normalize_mat_by_gene = function(counts_raw, limit_pct = 1) {
   
   if (limit_pct > 1) { stop("percentile should be expressed as a fraction") }
   if (class(counts_raw) != "matrix") { stop("expression matrix is not a matrix") }
-  if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
+  #if (max(counts_raw) < 100) { stop("expression values appear to be log-scaled") }
   
   counts_raw = apply(counts_raw, MARGIN = 1, FUN = rescale_vector, limit_pct = limit_pct)
   counts_raw = t(counts_raw)
